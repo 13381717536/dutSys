@@ -10,6 +10,7 @@ import datetime
 import re
 import os
 import threading
+import winsound
 
 class loginPanle():
     
@@ -23,6 +24,7 @@ class loginPanle():
         self.pwd = tk.StringVar()
         #self.pwd.set('z123456')
         self.saveCount = tk.IntVar()
+        self.openSound = tk.IntVar()
         #是否在抢单中
         self.ISRUNING = False
         self.totalPhones = 0
@@ -337,6 +339,12 @@ class loginPanle():
         self.logTextFelid = tkinter.scrolledtext.ScrolledText(logPanelTab)
         self.logTextFelid.pack(fill = tk.BOTH)
         tabControl.pack()
+        #功能设置界面
+        
+        soundLabel = tk.Label(settingPanelTab,text = '是否开启提示音')
+        soundLabel.grid(row = 0 , column = 0)
+        soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound)
+        soundCheckBt.grid(row = 0 , column = 1)
         #****************模块安装**********#
         for panel in [operateGroup , orderTableFrame ,balancePanle ,logPanel]:
             panel.pack_propagate(False)#固定frame大小
@@ -615,6 +623,7 @@ class loginPanle():
             print(i.get('Id') , i.get('ProductName') , i.get('Account'))
         '''
         self.refreshTable()
+        #self.playSound()
         url = 'http://duihuantu.com/Api/Charge/GetOrder'
         amount = self.sizeVar.get()
         num = self.comboVar.get()
@@ -642,6 +651,7 @@ class loginPanle():
             if Message != '暂无订单':
                 self.refreshTable()
                 self.printLog( str(result))
+                self.playSound()
                 nowOrder = self.totalPhones - nowPhones
                 #print(nowOrder)
                 #nowOrder += 1
@@ -696,6 +706,14 @@ class loginPanle():
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
             self.printLog('系统退出')
             self.root.destroy()
+    def playSound(self):
+        try:
+            if self.openSound.get() == 1:
+                winsound.PlaySound('notice.wav', winsound.SND_ASYNC)
+        except:
+            tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
+        
+            
             
         
 #for 注册
