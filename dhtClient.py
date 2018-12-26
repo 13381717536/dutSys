@@ -286,9 +286,9 @@ class loginPanle():
         for index_column , columnName in enumerate(columnsName):
             self.orderTable.column(index_column  , width = 100 )
             self.orderTable.heading(index_column  , text = columnName)
-        temLenth = 38
+        temLenth = 40
         self.orderTable.column('序号' , width = temLenth)
-        self.orderTable.column('号码' , width = temLenth*3)
+        self.orderTable.column('号码' , width = temLenth*2+4)
         self.orderTable.column('充值详情' , width = temLenth*3)
         self.orderTable.column('平台需支付你' , width = temLenth*2)
         self.orderTable.column('id' , width = temLenth*5)
@@ -459,6 +459,7 @@ class loginPanle():
             menu = tk.Menu(self.orderTable ,tearoff = False)
             menu.add_command(label = '复制' ,command = phoneCopy)
             menu.add_command(label = '确认充值完成' ,command = successConfirm)
+            menu.add_separator()
             menu.add_command(label = '确认充值失败' ,command = failConfirm)
             #menu.add_command(label = '导出EXCEL文件', command = exportExcel)
             menu.post(event.x_root ,event.y_root)
