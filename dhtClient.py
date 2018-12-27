@@ -218,36 +218,47 @@ class loginPanle():
         registPanel.mainloop()
         
     def mainPage(self ,loginInfo):
+        
         width_ =580
-        height_ = 610
-        operateGroup_height = 120
+        height_ = 620
+        operateGroup_height = 140
         orderTableFrame_height = 220
         balancePanle_height = 40
         logPanel_height =220
         
         self.root.geometry('%dx%d+%d+%d'%(width_,height_,(self.winWidth-width_)/2,(self.winHeght-height_)/2))
         self.mainFrame = tk.Frame(self.root)
-        
+        self.mainFrame.pack()
         #************操作区域都放在这里******************#
         
-        operateGroup = tk.LabelFrame(self.mainFrame , text = '操作区域' , width = width_ ,height = operateGroup_height )
+        operateGroup = tk.LabelFrame(self.mainFrame  , text = '操作区域', width = width_,height = operateGroup_height )
+        operateGroup.pack()
+        operateGroup.pack_propagate(False)
+        
         #将订单显示部分放入到一个框中
-        orderInfoPanel = tk.Frame(operateGroup)
+        orderInfoPanel = tk.Frame(operateGroup,width = width_,height = operateGroup_height-20)
+        #orderInfoPanel.pack_propagate(False)
+        orderInfoPanel.pack(pady = 5)
+        
         #订单大小
         self.sizeVar = tk.IntVar()
-        #sizeVar.set(10)
         orderInfo = self.getStandbyOrderNum()
         leatestMountLabels = []
+        countPrices = self.getSupplyPrice()
         #第一第二部分
+        for i , name in enumerate(['面值','数量','价格']):
+            tk.Label(orderInfoPanel , text = name).grid(row =i ,column = 0 ,sticky = tk.W)
         for i ,face in enumerate(orderInfo.items()):
             phoneFaceRadio = tk.Radiobutton(orderInfoPanel , text = face[0].replace('Amount',''),variable = self.sizeVar , value = int(face[0].replace('Amount','')))
             leatestMountLabel = tk.Label(orderInfoPanel , text = ' ' + str(face[1])+'  单')
-            phoneFaceRadio.grid(row = 0, column = i ,sticky = tk.W )
-            leatestMountLabel.grid(row = 1, column = i ,sticky = tk.W )
+            phoneFaceRadio.grid(row = 0, column = i+1 ,sticky = tk.W )
+            leatestMountLabel.grid(row = 1, column = i+1 ,sticky = tk.W )
             leatestMountLabels.append(leatestMountLabel)
+            supplyPrice = tk.Label(orderInfoPanel , text = '￥'+ str(countPrices[i]))
+            supplyPrice.grid(row = 2 ,column = i+1 ,sticky = tk.W)
         #第三部分 放入一个  功能  setting 框
         getPhoneSettingPanel = tk.Frame(operateGroup)
-        
+        getPhoneSettingPanel.pack()
         getPhoneLabel = tk.Label(getPhoneSettingPanel , text = '抢单数量')
         getPhoneLabel.pack(side = tk.LEFT , padx = 5)
         #下拉列表值
@@ -266,13 +277,16 @@ class loginPanle():
         refreshMountBt = tk.Button(getPhoneSettingPanel , text = '刷新订单数量')
         refreshMountBt.config(command = lambda : self.refreshMount(self.getStandbyOrderNum() , leatestMountLabels))
         refreshMountBt.pack(side = tk.LEFT , padx = 5)
-        orderInfoPanel.pack(pady = 5 , fill = tk.X)
-        getPhoneSettingPanel.pack(fill = tk.X)
+        
+        
 
         #*************抢单展示区域*****************#
         orderTableFrame = tk.Frame(self.mainFrame, width = width_ ,height = orderTableFrame_height)
-        columnsName = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","id"]
-        displaycolumns = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态"]
+        orderTableFrame.pack()
+        orderTableFrame.pack_propagate(False)
+        
+        columnsName = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间","id" ,"结算时间"]
+        displaycolumns = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间"]
         self.orderTable = ttk.Treeview(orderTableFrame , displaycolumns =displaycolumns ,columns = columnsName ,show = 'headings')
         self.orderTable.config(height = 8)
         orderTableScroolbar = tk.Scrollbar(orderTableFrame)
@@ -284,26 +298,29 @@ class loginPanle():
         orderTableScroolbar.pack(side = tk.RIGHT , fill = tk.Y)
         orderTableScroolbar2.pack(side = tk.BOTTOM , fill = tk.X)
         for index_column , columnName in enumerate(columnsName):
-            self.orderTable.column(index_column  , width = 100 )
+            self.orderTable.column(index_column  , width = 98 )
             self.orderTable.heading(index_column  , text = columnName)
-        temLenth = 40
+        temLenth = 45
         self.orderTable.column('序号' , width = temLenth)
         self.orderTable.column('号码' , width = temLenth*2+4)
         self.orderTable.column('充值详情' , width = temLenth*3)
         self.orderTable.column('平台需支付你' , width = temLenth*2)
-        self.orderTable.column('id' , width = temLenth*5)
+        self.orderTable.column('id' , width = temLenth*4)
+        self.orderTable.column('抢单时间' , width = temLenth*3)
+        self.orderTable.column('结算时间' , width = temLenth*3)
         #初始化面板
         for i in range(10):
             self.orderTable.insert('',i ,values = ['','','',''])
-        self.orderTable.bind('<Button-3>',self.showmenu)
-        self.orderTable.pack(side = tk.LEFT , fill = tk.X)
         
         self.colorTable(self.orderTable)
-        
+        self.orderTable.pack( side = tk.LEFT ,fill = tk.BOTH)
+        self.orderTable.bind('<Button-3>',self.showmenu)
         
         
         #***********显示总提现额度，和提现功能********#
         balancePanle = tk.LabelFrame(self.mainFrame, width = width_ ,height = balancePanle_height)
+        balancePanle.pack()
+        balancePanle.pack_propagate(False)
         tk.Label(balancePanle , text = '用户:%s'%self.username.get()).pack(side = tk.LEFT , padx = 2)
         #获取余额信息
         balanceInfo = self.getBalance()
@@ -327,31 +344,41 @@ class loginPanle():
         
         #********************日志打印模块*************#
         logPanel = tk.LabelFrame(self.mainFrame, width = width_ ,height = logPanel_height)
+        logPanel.pack()
+        logPanel.pack_propagate(False)
         #ttk.Notebook 控制tab页的东东
         tabControl = ttk.Notebook(logPanel)
+        tabControl.pack()
         #tab页
         logPanelTab = tk.LabelFrame(logPanel)
         settingPanelTab = tk.LabelFrame(logPanel )
+        #相当于安装
         tabControl.add(logPanelTab ,text = '日志打印')
         tabControl.add(settingPanelTab, text = '功能设置')
         
-        #log打印页面
-        self.logTextFelid = tkinter.scrolledtext.ScrolledText(logPanelTab)
-        self.logTextFelid.pack(fill = tk.BOTH)
-        tabControl.pack()
+        #logPanelTab打印日志页面&显示合计
+        self.logTextFelid = tkinter.scrolledtext.ScrolledText(logPanelTab , height = 12)
+        self.logTextFelid.pack(fill = tk.X)
+        #合计
+        totalFrame = tk.Frame(logPanelTab)
+        totalFrame.pack(fill = tk.X)
+        self.totalLabel = tk.Label(totalFrame)
+        self.totalLabel.pack(side = tk.LEFT)
+        
+        
+        
+        
         #功能设置界面
         
         soundLabel = tk.Label(settingPanelTab,text = '是否开启提示音')
         soundLabel.grid(row = 0 , column = 0)
         soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound)
         soundCheckBt.grid(row = 0 , column = 1)
-        #****************模块安装**********#
-        for panel in [operateGroup , orderTableFrame ,balancePanle ,logPanel]:
-            panel.pack_propagate(False)#固定frame大小
-            panel.pack()
+        
+            
             
         
-        self.mainFrame.pack()
+        
         
 
 
@@ -405,7 +432,6 @@ class loginPanle():
             selected = self.orderTable.selection()
             for item in selected:
                 it = self.orderTable.item(item , 'values')
-                print(len(it))
                 orderId = it[len(it)-1]
                 State = it[len(it)-2]
                 if State == '充值成功':
@@ -423,6 +449,16 @@ class loginPanle():
                     result = self.postInfo(url,data)
                     self.printLog('失败订单：'+result.get("Message"))
             self.refreshTable()
+        def queryAccountBalance():
+            url = 'http://duihuantu.com/Api/Misc/QueryAccountBalance'
+            selected = self.orderTable.selection()
+            for item in selected:
+                it = self.orderTable.item(item,'values')
+                phoneN = it[1]
+                data = {"account":phoneN}
+                res = self.postInfo(url , data).get("Data")
+                resInfo = '查询手机号%s余额成功，余额：%s，今日剩余查询次数：%s'%(phoneN,res.get('Balance'),res.get('Left'))
+                self.printLog(resInfo)
                 
         isWhat = self.orderTable.identify_region(event.x , event.y)
         if isWhat == 'heading':
@@ -460,12 +496,13 @@ class loginPanle():
             menu.add_command(label = '复制' ,command = phoneCopy)
             menu.add_command(label = '确认充值完成' ,command = successConfirm)
             menu.add_separator()
+            menu.add_command(label = '查询号码余额',command = queryAccountBalance)
             menu.add_command(label = '确认充值失败' ,command = failConfirm)
             #menu.add_command(label = '导出EXCEL文件', command = exportExcel)
             menu.post(event.x_root ,event.y_root)
 
                 
-    def myPost(self,url , data ,cookies = None):
+    def myPost(self,url , data = {} ,cookies = None):
         if cookies:
             response = requests.post(url , headers  = self.header , data = json.dumps(data) ,cookies = cookies)
         else :
@@ -493,6 +530,7 @@ class loginPanle():
                 
                 self.loginFrame.destroy()
                 self.mainPage(result)
+                self.refreshTotalLabel()
                 self.printLog('系统登录成功；用户名：%s'%user)
                 if self.saveCount.get() == 1:
                     with open('GLusers.txt','w') as f:
@@ -500,6 +538,11 @@ class loginPanle():
             
         else :
             tkinter.messagebox.showinfo('注意','用户名或者密码不能为空')
+    def getSupplyPrice(self):
+        url = 'http://duihuantu.com/Api/Charge/GetSupplyPrice'
+        data = self.getInfo(url)
+        data = data.values()
+        return [i.get("Price") for i in data]
     def reflashBalance(self):
         balanceInfo = self.getBalance()
         showBalace = '总提现额度:%s ; 可提现余额:%s'%(balanceInfo.get('TotalTradeAmount'),balanceInfo.get('Balance'))
@@ -525,6 +568,11 @@ class loginPanle():
             State = order.get('State')
             #id
             Id = order.get("Id")
+            #抢单时间
+            createTime= self.changeTime(order.get("SupCreateTime"))
+            #结算时间
+            completeTime=self.changeTime(order.get("CompleteTime"))
+            
             if State == 4:
                 State = '充值成功'
             elif State == 5:
@@ -533,14 +581,36 @@ class loginPanle():
                 State = '供货商充值中'
             elif State == 11:
                 State = '供货商充值完成'
-            self.orderTable.insert('',sequence -1 , values =(sequence ,phoneNumber , ProductName,CostPrice , PreBalance+"/"+PostBlance , State,Id))
+            self.orderTable.insert('',sequence -1 , values =(sequence ,phoneNumber , ProductName,CostPrice , PreBalance+"/"+PostBlance , State,createTime,Id ,completeTime))
         self.colorTable(self.orderTable)
         self.printLog('刷新订单信息成功....')
+        self.refreshTotalLabel()
     def refreshMount(self , orderInfo , leatestMountLabels):
         for i in range((len(leatestMountLabels))):
             leatestMountLabels[i]['text'] = ' ' + str(list(orderInfo.values())[i]) + '  单'
         self.refreshTable()
         self.reflashBalance()
+    def refreshTotalLabel(self):
+        items = self.orderTable.get_children()
+        totalMoney = 0
+        totalOrder = 0
+        successOrder = 0
+        failedOrder = 0
+        ingOrder = 0
+        totalInfo = ''
+        for i in items:
+            oneColumn = self.orderTable.item(i,'values')
+            if oneColumn[3] and oneColumn[5]:
+                totalOrder += 1
+                totalMoney += float (oneColumn[3])
+                if oneColumn[5] == '充值成功':
+                    successOrder += 1
+                elif oneColumn[5] == '充值失败':
+                    failedOrder += 1
+                else:
+                    ingOrder += 1
+        totalInfo = '合计：今日获取总笔数%s(成功%s 失败%s 进行中%s)；今日累计赚取：%s元'%(totalOrder,successOrder,failedOrder,ingOrder,totalMoney)
+        self.totalLabel['text']= totalInfo
     def getBalance(self):
         '''
         #获取余额，总提现等信息
@@ -703,6 +773,14 @@ class loginPanle():
         mythreading = threading.Thread(target = func , args = args)
         mythreading.start()
         self.printLog('抢单线程开启....')
+    #字符串转换时间
+    def changeTime(self ,string):
+        #/Date(1545875078247)/
+        if 'Date' in string:
+            string = string[6:16]
+            return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(string)))
+        else:
+            return "无"
     def closeSys(self):
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
             self.printLog('系统退出')
