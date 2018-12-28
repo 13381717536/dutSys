@@ -776,7 +776,8 @@ class loginPanle():
     #字符串转换时间
     def changeTime(self ,string):
         #/Date(1545875078247)/
-        if 'Date' in string:
+        #print(string)
+        if string:
             string = string[6:16]
             return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(string)))
         else:
