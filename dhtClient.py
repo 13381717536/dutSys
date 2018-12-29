@@ -539,11 +539,11 @@ class loginPanle():
             self.root.attributes('-disable',1)
         elif isWhat == 'cell':
             menu = tk.Menu(self.orderTable ,tearoff = False)
-            menu.add_command(label = '复        制' ,command = phoneCopy)
+            menu.add_command(label = '复制' ,command = phoneCopy)
             menu.add_command(label = '确认充值完成' ,command = successConfirm)
             menu.add_separator()
             menu.add_command(label = '查询号码余额',command = queryAccountBalance)
-            menu.add_command(label = '上传    凭证',command =  uploadPicture)
+            menu.add_command(label = '上传凭证',command =  uploadPicture)
             menu.add_command(label = '确认充值失败' ,command = failConfirm)
             #menu.add_command(label = '导出EXCEL文件', command = exportExcel)
             menu.post(event.x_root ,event.y_root)
