@@ -844,7 +844,7 @@ class loginPanle():
             return "无"
     def closeSys(self):
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
-            self.printLog('系统退出')
+            #self.printLog('系统退出')
             self.root.destroy()
             
     def playSound(self):
