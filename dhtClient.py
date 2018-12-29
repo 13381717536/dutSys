@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import tkinter.scrolledtext 
 import tkinter.messagebox
+import tkinter.filedialog as fd
 import requests
 import json
 import pickle
@@ -27,6 +28,7 @@ class loginPanle():
         self.openSound = tk.IntVar()
         #是否在抢单中
         self.ISRUNING = False
+        self.ordersInfo = []
         self.totalPhones = 0
         self.textIndex = 0
         self.getTimes = 0
@@ -243,7 +245,7 @@ class loginPanle():
         #订单大小
         self.sizeVar = tk.IntVar()
         orderInfo = self.getStandbyOrderNum()
-        leatestMountLabels = []
+        self.leatestMountLabels = []
         countPrices = self.getSupplyPrice()
         #第一第二部分
         for i , name in enumerate(['面值','数量','价格']):
@@ -253,7 +255,7 @@ class loginPanle():
             leatestMountLabel = tk.Label(orderInfoPanel , text = ' ' + str(face[1])+'  单')
             phoneFaceRadio.grid(row = 0, column = i+1 ,sticky = tk.W )
             leatestMountLabel.grid(row = 1, column = i+1 ,sticky = tk.W )
-            leatestMountLabels.append(leatestMountLabel)
+            self.leatestMountLabels.append(leatestMountLabel)
             supplyPrice = tk.Label(orderInfoPanel , text = '￥'+ str(countPrices[i]))
             supplyPrice.grid(row = 2 ,column = i+1 ,sticky = tk.W)
         #第三部分 放入一个  功能  setting 框
@@ -275,7 +277,7 @@ class loginPanle():
         endGetPhoneBt.pack(side = tk.LEFT , padx = 5)
         #刷新订单
         refreshMountBt = tk.Button(getPhoneSettingPanel , text = '刷新订单数量')
-        refreshMountBt.config(command = lambda : self.refreshMount(self.getStandbyOrderNum() , leatestMountLabels))
+        refreshMountBt.config(command = self.refreshMount)
         refreshMountBt.pack(side = tk.LEFT , padx = 5)
         
         
@@ -285,8 +287,8 @@ class loginPanle():
         orderTableFrame.pack()
         orderTableFrame.pack_propagate(False)
         
-        columnsName = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间","id" ,"结算时间"]
-        displaycolumns = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间"]
+        columnsName = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间","凭证","id" ,"结算时间"]
+        displaycolumns = ['序号','号码','充值详情','平台需支付你',"充前/充后","订单状态","抢单时间","凭证"]
         self.orderTable = ttk.Treeview(orderTableFrame , displaycolumns =displaycolumns ,columns = columnsName ,show = 'headings')
         self.orderTable.config(height = 8)
         orderTableScroolbar = tk.Scrollbar(orderTableFrame)
@@ -309,10 +311,12 @@ class loginPanle():
         self.orderTable.column('抢单时间' , width = temLenth*3)
         self.orderTable.column('结算时间' , width = temLenth*3)
         #初始化面板
+        '''
         for i in range(10):
             self.orderTable.insert('',i ,values = ['','','',''])
         
         self.colorTable(self.orderTable)
+        '''
         self.orderTable.pack( side = tk.LEFT ,fill = tk.BOTH)
         self.orderTable.bind('<Button-3>',self.showmenu)
         
@@ -420,20 +424,25 @@ class loginPanle():
             self.root.clipboard_append(res)
         def successConfirm():
             selected = self.orderTable.selection()
+            
             for item in selected:
                 it = self.orderTable.item(item , 'values')
-                orderId = it[len(it)-1]
+                orderId = it[self.orderTable["columns"].index('id')]
                 url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
                 data = {"orderId":orderId}
+                self.printLog('发送消息：%s'%data)
                 result = self.postInfo(url,data)
-                self.printLog('充值完成确认：'+result.get("Message"))
+                msg = result.get("Message")
+                if  msg !='操作成功':
+                    tkinter.messagebox.showerror('*******警告*******','操作失败，错误原因：%s'%msg)
+                self.printLog('返回消息-【充值完成】：%s'%msg)
             self.refreshTable()
         def failConfirm():
             selected = self.orderTable.selection()
             for item in selected:
                 it = self.orderTable.item(item , 'values')
-                orderId = it[len(it)-1]
-                State = it[len(it)-2]
+                orderId = it[it[self.orderTable["columns"].index('id')]]
+                State = it[it[self.orderTable["columns"].index('订单状态')]]
                 if State == '充值成功':
                     State = 4
                 elif State == "充值失败":
@@ -447,7 +456,8 @@ class loginPanle():
                     url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
                     data = {"orderId":orderId,"state":State}
                     result = self.postInfo(url,data)
-                    self.printLog('失败订单：'+result.get("Message"))
+                    self.printLog('发送消息：%s'%data)
+                    self.printLog('返回消息-失败订单：%s'%result.get("Message"))
             self.refreshTable()
         def queryAccountBalance():
             url = 'http://duihuantu.com/Api/Misc/QueryAccountBalance'
@@ -459,7 +469,43 @@ class loginPanle():
                 res = self.postInfo(url , data).get("Data")
                 resInfo = '查询手机号%s余额成功，余额：%s，今日剩余查询次数：%s'%(phoneN,res.get('Balance'),res.get('Left'))
                 self.printLog(resInfo)
+        def uploadPicture():
+            
+            url = 'http://duihuantu.com/Api/Charge/UploadImage'
+            selected = self.orderTable.selection()
+            for item in selected:
+                it = self.orderTable.item(item,'values')
+                phoneNumber = it[self.orderTable['columns'].index('号码')]
+                orderId = it[self.orderTable['columns'].index('id')]
+                #每次id都不同需要
+                myheaders = {'Host': 'duihuantu.com',
+                           'Connection': 'keep-alive',
+                           'Origin': 'http://duihuantu.com',
+                           'orderId': orderId,
+                           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
+                           ,'Accept': '*/*','Referer': 'http://duihuantu.com/',
+                           'Accept-Encoding': 'gzip, deflate','Accept-Language': 'zh-CN,zh;q=0.9'}
                 
+
+                picturePath = fd.askopenfilename()
+                if picturePath and (picturePath.endswith('jpg') or picturePath.endswith('png') or picturePath.endswith('jpeg') or picturePath.endswith('tiff')):
+                    readImg = open(picturePath,'rb')
+                    self.printLog('选择上传的文件是：%s'%picturePath)
+                    file = { 'img':readImg }
+                    response = requests.post(url,headers = myheaders,cookies = self.cookies ,files = file)
+                    result = response.json().get('Message')
+                    if result == '上传成功':
+                        self.printLog('手机号:%s,凭证：%s'%(phoneNumber,result))
+                        tkinter.messagebox.showinfo('提示','手机号:%s,凭证：%s'%(phoneNumber,result))
+                    else:
+                        self.printLog('手机号:%s,%s'%(phoneNumber,result))
+                        tkinter.messagebox.showerror('***********************警告***********************',result)
+                    readImg.close()
+                    self.refreshTable()
+                else:
+                    tkinter.messagebox.showinfo('提示','取消上传或者上传文件格式不是支持的图片.....请重新选择')
+                    self.printLog('取消上传或者上传文件格式不是支持的图片.....请重新选择')
+                  
         isWhat = self.orderTable.identify_region(event.x , event.y)
         if isWhat == 'heading':
             menuPanel = tk.Toplevel(takefocus=True)
@@ -493,10 +539,11 @@ class loginPanle():
             self.root.attributes('-disable',1)
         elif isWhat == 'cell':
             menu = tk.Menu(self.orderTable ,tearoff = False)
-            menu.add_command(label = '复制' ,command = phoneCopy)
+            menu.add_command(label = '复        制' ,command = phoneCopy)
             menu.add_command(label = '确认充值完成' ,command = successConfirm)
             menu.add_separator()
             menu.add_command(label = '查询号码余额',command = queryAccountBalance)
+            menu.add_command(label = '上传    凭证',command =  uploadPicture)
             menu.add_command(label = '确认充值失败' ,command = failConfirm)
             #menu.add_command(label = '导出EXCEL文件', command = exportExcel)
             menu.post(event.x_root ,event.y_root)
@@ -530,11 +577,14 @@ class loginPanle():
                 
                 self.loginFrame.destroy()
                 self.mainPage(result)
-                self.refreshTotalLabel()
+                self.aotuReflash()
+                
                 self.printLog('系统登录成功；用户名：%s'%user)
                 if self.saveCount.get() == 1:
                     with open('GLusers.txt','w') as f:
                         f.write(user+'-'+pwd)
+                   
+            
             
         else :
             tkinter.messagebox.showinfo('注意','用户名或者密码不能为空')
@@ -543,51 +593,69 @@ class loginPanle():
         data = self.getInfo(url)
         data = data.values()
         return [i.get("Price") for i in data]
+    
+        
+        
     def reflashBalance(self):
         balanceInfo = self.getBalance()
         showBalace = '总提现额度:%s ; 可提现余额:%s'%(balanceInfo.get('TotalTradeAmount'),balanceInfo.get('Balance'))
         self.balanceInfoLabel["text"] = showBalace
         self.printLog('刷新余额成功....')
     def refreshTable(self):
-        self.deleteTable(self.orderTable)
         orders = self.getPhoneInfo()
-        sequence = 0
-        for order in orders:
-            #排序
-            sequence += 1
-            #手机号
-            phoneNumber = order.get('Account')
-            #详情
-            ProductName = order.get('ProductName')
-            #平台需支付你
-            CostPrice = order.get('CostPrice')
-            #充值前、后
-            PreBalance = str(order.get("PreBalance"))
-            PostBlance = str(order.get("PostBlance"))
-            #状态
-            State = order.get('State')
-            #id
-            Id = order.get("Id")
-            #抢单时间
-            createTime= self.changeTime(order.get("SupCreateTime"))
-            #结算时间
-            completeTime=self.changeTime(order.get("CompleteTime"))
-            
-            if State == 4:
-                State = '充值成功'
-            elif State == 5:
-                State = '充值失败'
-            elif State == 10:
-                State = '供货商充值中'
-            elif State == 11:
-                State = '供货商充值完成'
-            self.orderTable.insert('',sequence -1 , values =(sequence ,phoneNumber , ProductName,CostPrice , PreBalance+"/"+PostBlance , State,createTime,Id ,completeTime))
-        self.colorTable(self.orderTable)
-        self.printLog('刷新订单信息成功....')
-        self.refreshTotalLabel()
-    def refreshMount(self , orderInfo , leatestMountLabels):
-        for i in range((len(leatestMountLabels))):
-            leatestMountLabels[i]['text'] = ' ' + str(list(orderInfo.values())[i]) + '  单'
+        if orders == self.ordersInfo:
+            self.printLog('刷新订单信息成功(订单无变动)....')
+            return
+        else:
+            self.ordersInfo = self.getPhoneInfo()
+        if len(orders) != 0:
+            self.deleteTable(self.orderTable)
+            sequence = 0
+            for order in orders:
+                #排序
+                sequence += 1
+                #手机号
+                phoneNumber = order.get('Account')
+                #详情
+                ProductName = order.get('ProductName')
+                #平台需支付你
+                CostPrice = order.get('CostPrice')
+                #充值前、后
+                PreBalance = str(order.get("PreBalance"))
+                PostBlance = str(order.get("PostBlance"))
+                #状态
+                State = order.get('State')
+                #id
+                Id = order.get("Id")
+                #抢单时间
+                createTime= self.changeTime(order.get("SupCreateTime"))
+                #结算时间
+                completeTime=self.changeTime(order.get("CompleteTime"))
+                if completeTime:
+                    completeTime = '暂无'
+                #FilePath是否上传了文件
+                isUploadFile = order.get("FilePath")
+                if isUploadFile:
+                    isUploadFile = '已上传'
+                else:
+                    isUploadFile = '未上传'
+                
+                if State == 4:
+                    State = '充值成功'
+                elif State == 5:
+                    State = '充值失败'
+                elif State == 10:
+                    State = '供货商充值中'
+                elif State == 11:
+                    State = '供货商充值完成'
+                self.orderTable.insert('',sequence -1 , values =(sequence ,phoneNumber , ProductName,CostPrice , PreBalance+"/"+PostBlance , State,createTime,isUploadFile,Id ,completeTime))
+            self.colorTable(self.orderTable)
+            self.refreshTotalLabel()
+        self.printLog('刷新订单信息成功(订单有更新)....')
+    def refreshMount(self):
+        orderInfo = self.getStandbyOrderNum()
+        for i in range((len(self.leatestMountLabels))):
+            self.leatestMountLabels[i]['text'] = ' ' + str(list(orderInfo.values())[i]) + '  单'
         self.refreshTable()
         self.reflashBalance()
     def refreshTotalLabel(self):
@@ -685,14 +753,6 @@ class loginPanle():
         开始抢单
         postdata格式：{"amount":"500","province":"","num":"1"}
         '''
-        #测试
-        '''
-        ok = self.getPhoneInfo()
-        print(type(ok))
-        for i in ok:
-            print(type(i))
-            print(i.get('Id') , i.get('ProductName') , i.get('Account'))
-        '''
         self.refreshTable()
         #self.playSound()
         url = 'http://duihuantu.com/Api/Charge/GetOrder'
@@ -731,7 +791,7 @@ class loginPanle():
             self.printLog(str(Message))
         
         self.endGetPhoneBt(bt)
-            
+    
     def endGetPhoneBt(self , bt):
         '''
         结束抢单
@@ -769,10 +829,10 @@ class loginPanle():
         if self.getTimes > 1100:
             self.getTimes = 100
             self.logTextFelid.delete('1.0','1000.0')
-    def myThreading(self,func,args):
+    def myThreading(self,func,args = {},name = '抢单'):
         mythreading = threading.Thread(target = func , args = args)
         mythreading.start()
-        self.printLog('抢单线程开启....')
+        self.printLog('%s线程开启....'%name)
     #字符串转换时间
     def changeTime(self ,string):
         #/Date(1545875078247)/
@@ -786,6 +846,7 @@ class loginPanle():
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
             self.printLog('系统退出')
             self.root.destroy()
+            
     def playSound(self):
         try:
             if self.openSound.get() == 1:
@@ -793,7 +854,17 @@ class loginPanle():
         except:
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
         
-            
+    def aotuReflash(self , times = 8):
+        def reflash():
+            while True :
+                try:
+                    self.refreshMount()
+                    time.sleep(times)
+                except:
+                    return
+        self.myThreading(reflash ,name = '自动刷新')
+        #t = threading.Thread(target = reflash )
+        #t.start()
             
         
 #for 注册
