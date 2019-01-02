@@ -12,6 +12,7 @@ import re
 import os
 import threading
 import winsound
+from multiprocessing import Process ,Queue
 
 class loginPanle():
     
@@ -41,7 +42,10 @@ class loginPanle():
             'Content-Type': 'application/json'#这个对于post 的解析不同，可深入研究
             }
         self.setupUI()
-        
+
+ # **************************************************************************#
+ #                          界面函数部分                                       #
+ # **************************************************************************#
     def setupUI(self):
         self.loginFrame = tk.Frame(self.root)
         self.root.geometry('%dx%d+%d+%d'%(280,80,(self.winWidth-280)/2,(self.winHeght-80)/2))
@@ -269,11 +273,12 @@ class loginPanle():
         #getPhoneNumberCombobox.setvar('1')
         getPhoneNumberCombobox.pack(side = tk.LEFT , padx = 5)
         #开始和结束抢单按钮
-        beginGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '开始抢单')
-        beginGetPhoneBt.config(command = lambda : self.myThreading(self.beginGetPhone ,(beginGetPhoneBt,))) 
+        self.beginGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '开始抢单')
+        #self.beginGetPhoneBt.config(command = self.getPhoneProcessing)
+        self.beginGetPhoneBt.config(command= lambda : self.beginGetPhone(self.beginGetPhoneBt))
         endGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '停止抢单' )
-        endGetPhoneBt.config(command = lambda : self.endGetPhoneBt(beginGetPhoneBt)  )
-        beginGetPhoneBt.pack(side = tk.LEFT , padx = 5)
+        endGetPhoneBt.config(command = lambda : self.endGetPhoneBt(self.beginGetPhoneBt)  )
+        self.beginGetPhoneBt.pack(side = tk.LEFT , padx = 5)
         endGetPhoneBt.pack(side = tk.LEFT , padx = 5)
         #刷新订单
         refreshMountBt = tk.Button(getPhoneSettingPanel , text = '刷新订单数量')
@@ -378,71 +383,242 @@ class loginPanle():
         soundLabel.grid(row = 0 , column = 0)
         soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound)
         soundCheckBt.grid(row = 0 , column = 1)
-        
-            
-            
-        
-        
-        
+
+ # **************************************************************************#
+ #                          业务函数部分                                       #
+ # **************************************************************************#
+    '''
+    功能：登录函数，成功后，加载主界面
+    返回：无
+    '''
+
+    def checkCount(self, event=None):
+        # 网络登录部分
+        loginUrl = 'http://duihuantu.com/Api/User/SignIn'
+        header = self.header
+        user = self.username.get()
+        pwd = self.pwd.get()
+        if user and pwd:
+            data = {"account": str(user), "password": str(pwd), "rememberme": ""}
+            response = requests.post(loginUrl, headers=header, data=json.dumps(data))
+            # print (response.text)
+            result = response.json()
+            self.cookies = response.cookies
+            # with  open('cookies' , 'wb') as cookiesFile:
+            #    pickle.dump(self.cookies,cookiesFile)
+            if result.get('Message') != '登录成功':
+                tkinter.messagebox.showwarning('警告', '用户名或者密码错误！')
+            else:
+
+                self.loginFrame.destroy()
+                self.mainPage(result)
+                self.aotuReflash()
+
+                self.printLog('系统登录成功；用户名：%s' % user)
+                if self.saveCount.get() == 1:
+                    with open('GLusers.txt', 'w') as f:
+                        f.write(user + '-' + pwd)
 
 
 
+        else:
+            tkinter.messagebox.showinfo('注意', '用户名或者密码不能为空')
 
-#**************************************************************************#
-#                          工具函数部分                                    #
-#**************************************************************************#
-        
-    def showmenu (self,event):
-        
+    '''
+        功能：获取各个面值供应的价格
+        返回：价格数组；按照面额从小到大返回10-->20-->30-->50-->100-->200-->300-->500的对应的价格
+        '''
+    def getSupplyPrice(self):
+        url = 'http://duihuantu.com/Api/Charge/GetSupplyPrice'
+        data = self.getInfo(url)
+        data = data.values()
+        return [i.get("Price") for i in data]
+
+    '''
+               功能：获取当前可获取的订单数量
+              返回：订单数量的data
+    '''
+    def getStandbyOrderNum(self):
+        '''
+        {'Amount10': 1, 'Amount20': 0, 'Amount30': 0, 'Amount50': 0, 'Amount100': 0,
+        'Amount200': 0, 'Amount300': 0, 'Amount500': 0} <class 'dict'>
+        '''
+        url = 'http://duihuantu.com/Api/Charge/GetStandbyOrderNum'
+        return self.getInfo(url)
+
+    '''
+               功能：获取已经抢到的订单数
+               返回：订单信息
+    '''
+
+    def getPhoneInfo(self):
+        '''
+        这是一个获取抢到的订单的信息的面板
+
+        '''
+        today = datetime.datetime.now()
+        delta = datetime.timedelta(days=0)
+        n_days = today - delta
+        url = 'http://duihuantu.com/Api/Charge/GetPage'
+        data = {"pageIndex": 1, "pageSize": 15, "state": "",
+                "startTime": str(n_days.strftime('%Y-%m-%d ')) + " 00:00:00",
+                "endTime": str(today.strftime("%Y-%m-%d ")) + " 23:59:59", "account": ""}
+        response = self.postInfo(url, data)
+        result = response.get('Data').get('Rows')
+        # 此处返回当前sys界面的已存在的订单数
+        self.totalPhones = response.get("Data").get("total")
+        return result
+
+    '''
+                  功能：开始抢单
+                  返回：无
+    '''
+
+    def beginGetPhone(self, bt):
+        '''
+        postdata格式：{"amount":"500","province":"","num":"1"}
+        '''
+        self.refreshTable()
+        url = 'http://duihuantu.com/Api/Charge/GetOrder'
+        amount = self.sizeVar.get()
+        num = self.comboVar.get()
+        if amount and num:
+            num = int(num)
+            bt['state'] = tk.DISABLED
+            bt['text'] = '抢单ing....'
+            data = {"amount": amount, "province": "", "num": '1'}
+            self.printLog(str(data))
+            bt.update()
+            self.ISRUNING = True
+        else:
+            tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
+            return
+        nowPhones = self.totalPhones
+        nowOrder = 0
+        while nowOrder < num:
+            # 是否点击停止抢单
+            if not self.ISRUNING:
+                break
+            result = self.postInfo(url, data)
+            Message = result.get('Message')
+            if Message != '暂无订单':
+                self.refreshTable()
+                self.printLog(result)
+                self.playSound()
+                nowOrder = self.totalPhones - nowPhones
+
+            self.printLog(Message)
+
+        self.endGetPhoneBt(bt)
+
+    '''
+                  功能： 结束抢单
+                  返回：无
+    '''
+
+    def endGetPhoneBt(self, bt):
+
+        bt['state'] = tk.NORMAL
+        bt['text'] = '开始抢单'
+        self.ISRUNING = False
+
+    '''
+         功能：获取账户余额
+        返回：账户的data信息
+     '''
+
+    def getBalance(self):
+        '''
+        {'Data':
+        {'Balance': 0.0,
+        'FreezeBalance': 0.0,
+        'TotalCommissionBalance': 0.0,
+        'TotalTradeAmount': 234259.12},
+        'Message': '余额查询成功', 'State': 0}
+        '''
+        url = 'http://duihuantu.com/Api/Finance/GetBalance'
+        return self.getInfo(url)
+
+    '''
+            功能：提现功能实现
+           返回：无
+    '''
+
+    def balance2Count(self, amount):
+
+        url = "http://duihuantu.com/Api/Finance/TransferApply"
+        if not amount:
+            balanceInfo = self.getBalance()
+            amount = balanceInfo.get('Balance')
+        postData = {"amount": float(amount)}
+        if tkinter.messagebox.askyesno('提现确认', '确认提现%s元吗' % amount):
+            result = self.postInfo(url, postData).get("Message")
+
+            if result == '操作成功':
+                tkinter.messagebox.showinfo('提示', '提现：%s' % amount + '元' + result)
+            self.printLog('提现：%s' % amount + '元' + result)
+            self.reflashBalance()
+
+    '''
+    订单界面的右键菜单
+    '''
+
+    def showmenu(self, event):
+
         def selectAll(checkbts):
             for i in checkbts:
                 i.select()
-            
+
         def selectNull(checkbts):
             for i in checkbts:
                 i.deselect()
+
         def confirm(checkInfo):
             res = []
             for i in range(len(checkInfo)):
                 if checkInfo[i].get() == 1:
                     res.append(self.orderTable['columns'][i])
-            self.orderTable.config(displaycolumns = res )
-            self.root.attributes('-disable',0)
+            self.orderTable.config(displaycolumns=res)
+            self.root.attributes('-disable', 0)
             menuPanel.destroy()
             self.P = 0
+
         def canser():
-            self.root.attributes('-disable',0)   
+            self.root.attributes('-disable', 0)
             menuPanel.destroy()
             self.P = 0
+
         def phoneCopy():
             res = ''
             selected = self.orderTable.selection()
             for item in selected:
-                it = self.orderTable.item(item , 'values')
-                res += it[1]+'\n'
+                it = self.orderTable.item(item, 'values')
+                res += it[1] + '\n'
             self.root.clipboard_clear()
             self.root.clipboard_append(res)
+
         def successConfirm():
             selected = self.orderTable.selection()
-            
+
             for item in selected:
-                it = self.orderTable.item(item , 'values')
+                it = self.orderTable.item(item, 'values')
                 orderId = it[self.orderTable["columns"].index('id')]
                 url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
-                data = {"orderId":orderId}
-                self.printLog('发送消息：%s'%data)
-                result = self.postInfo(url,data)
+                data = {"orderId": orderId}
+                self.printLog('发送消息：%s' % data)
+                result = self.postInfo(url, data)
                 msg = result.get("Message")
-                if  msg !='操作成功':
-                    tkinter.messagebox.showerror('*******警告*******','操作失败，错误原因：%s'%msg)
-                self.printLog('返回消息-【充值完成】：%s'%msg)
+                if msg != '操作成功':
+                    tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % msg)
+                self.printLog('返回消息-【充值完成】：%s' % msg)
             self.refreshTable()
+
         def failConfirm():
             selected = self.orderTable.selection()
             for item in selected:
-                it = self.orderTable.item(item , 'values')
-                orderId = it[it[self.orderTable["columns"].index('id')]]
-                State = it[it[self.orderTable["columns"].index('订单状态')]]
+                it = self.orderTable.item(item, 'values')
+                orderId = it[self.orderTable["columns"].index('id')]
+                State = it[self.orderTable["columns"].index('订单状态')]
                 if State == '充值成功':
                     State = 4
                 elif State == "充值失败":
@@ -451,156 +627,121 @@ class loginPanle():
                     State = 10
                 elif State == '供货商充值完成':
                     State = 11
-               
-                if tkinter.messagebox.askyesno('确认失败？','确认失败此笔订单吗'):
+
+                if tkinter.messagebox.askyesno('确认失败？', '确认失败此笔订单吗'):
                     url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
-                    data = {"orderId":orderId,"state":State}
-                    result = self.postInfo(url,data)
-                    self.printLog('发送消息：%s'%data)
-                    self.printLog('返回消息-失败订单：%s'%result.get("Message"))
+                    data = {"orderId": orderId, "state": State}
+                    result = self.postInfo(url, data)
+                    self.printLog('发送消息：%s' % data)
+                    self.printLog('返回消息-失败订单：%s' % result.get("Message"))
             self.refreshTable()
+
         def queryAccountBalance():
             url = 'http://duihuantu.com/Api/Misc/QueryAccountBalance'
             selected = self.orderTable.selection()
             for item in selected:
-                it = self.orderTable.item(item,'values')
+                it = self.orderTable.item(item, 'values')
                 phoneN = it[1]
-                data = {"account":phoneN}
-                res = self.postInfo(url , data).get("Data")
-                resInfo = '查询手机号%s余额成功，余额：%s，今日剩余查询次数：%s'%(phoneN,res.get('Balance'),res.get('Left'))
+                data = {"account": phoneN}
+                res = self.postInfo(url, data).get("Data")
+                resInfo = '查询手机号%s余额成功，余额：%s，今日剩余查询次数：%s' % (phoneN, res.get('Balance'), res.get('Left'))
                 self.printLog(resInfo)
+
         def uploadPicture():
-            
+
             url = 'http://duihuantu.com/Api/Charge/UploadImage'
             selected = self.orderTable.selection()
             for item in selected:
-                it = self.orderTable.item(item,'values')
+                it = self.orderTable.item(item, 'values')
                 phoneNumber = it[self.orderTable['columns'].index('号码')]
                 orderId = it[self.orderTable['columns'].index('id')]
-                #每次id都不同需要
+                # 每次id都不同需要
                 myheaders = {'Host': 'duihuantu.com',
-                           'Connection': 'keep-alive',
-                           'Origin': 'http://duihuantu.com',
-                           'orderId': orderId,
-                           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
-                           ,'Accept': '*/*','Referer': 'http://duihuantu.com/',
-                           'Accept-Encoding': 'gzip, deflate','Accept-Language': 'zh-CN,zh;q=0.9'}
-                
+                             'Connection': 'keep-alive',
+                             'Origin': 'http://duihuantu.com',
+                             'orderId': orderId,
+                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
+                    , 'Accept': '*/*', 'Referer': 'http://duihuantu.com/',
+                             'Accept-Encoding': 'gzip, deflate', 'Accept-Language': 'zh-CN,zh;q=0.9'}
 
                 picturePath = fd.askopenfilename()
-                if picturePath and (picturePath.endswith('jpg') or picturePath.endswith('png') or picturePath.endswith('jpeg') or picturePath.endswith('tiff')):
-                    readImg = open(picturePath,'rb')
-                    self.printLog('选择上传的文件是：%s'%picturePath)
-                    file = { 'img':readImg }
-                    response = requests.post(url,headers = myheaders,cookies = self.cookies ,files = file)
+                if picturePath and (picturePath.endswith('jpg') or picturePath.endswith('png') or picturePath.endswith(
+                        'jpeg') or picturePath.endswith('tiff')):
+                    readImg = open(picturePath, 'rb')
+                    self.printLog('选择上传的文件是：%s' % picturePath)
+                    file = {'img': readImg}
+                    response = requests.post(url, headers=myheaders, cookies=self.cookies, files=file)
                     result = response.json().get('Message')
                     if result == '上传成功':
-                        self.printLog('手机号:%s,凭证：%s'%(phoneNumber,result))
-                        tkinter.messagebox.showinfo('提示','手机号:%s,凭证：%s'%(phoneNumber,result))
+                        self.printLog('手机号:%s,凭证：%s' % (phoneNumber, result))
+                        tkinter.messagebox.showinfo('提示', '手机号:%s,凭证：%s' % (phoneNumber, result))
                     else:
-                        self.printLog('手机号:%s,%s'%(phoneNumber,result))
-                        tkinter.messagebox.showerror('***********************警告***********************',result)
+                        self.printLog('手机号:%s,%s' % (phoneNumber, result))
+                        tkinter.messagebox.showerror('***********************警告***********************', result)
                     readImg.close()
                     self.refreshTable()
                 else:
-                    tkinter.messagebox.showinfo('提示','取消上传或者上传文件格式不是支持的图片.....请重新选择')
+                    tkinter.messagebox.showinfo('提示', '取消上传或者上传文件格式不是支持的图片.....请重新选择')
                     self.printLog('取消上传或者上传文件格式不是支持的图片.....请重新选择')
-                  
-        isWhat = self.orderTable.identify_region(event.x , event.y)
+
+        isWhat = self.orderTable.identify_region(event.x, event.y)
         if isWhat == 'heading':
             menuPanel = tk.Toplevel(takefocus=True)
             menuPanel.overrideredirect(True)
-            menuPanel.geometry('+{}+{}'.format(event.x_root , event.y_root))
-            F = tk.Button(menuPanel , borderwidth = 2)
+            menuPanel.geometry('+{}+{}'.format(event.x_root, event.y_root))
+            F = tk.Button(menuPanel, borderwidth=2)
             F['state'] = tk.DISABLED
             F.pack()
             top = tk.Frame(F)
-            tk.Button(top , text = '全选',command = lambda : selectAll(checkbts)).pack(side = tk.LEFT , padx = 2)
-            tk.Button(top , text ='清空',command = lambda : selectNull(checkbts)).pack(side = tk.LEFT, padx =2)
-            mid = tk.LabelFrame(F , text ='定制你的专属表头')
+            tk.Button(top, text='全选', command=lambda: selectAll(checkbts)).pack(side=tk.LEFT, padx=2)
+            tk.Button(top, text='清空', command=lambda: selectNull(checkbts)).pack(side=tk.LEFT, padx=2)
+            mid = tk.LabelFrame(F, text='定制你的专属表头')
             checkbts = []
             checkInfo = []
             for i in self.orderTable['columns']:
                 iv = tk.IntVar()
-                cb = tk.Checkbutton(mid , text = self.orderTable.heading(i , 'text'),variable = iv)
-                cb.pack(side = tk.LEFT)
+                cb = tk.Checkbutton(mid, text=self.orderTable.heading(i, 'text'), variable=iv)
+                cb.pack(side=tk.LEFT)
                 if i in self.orderTable['displaycolumns']:
                     cb.select()
                 _cb = cb
                 _iv = iv
                 checkInfo.append(_iv)
-                checkbts.append(_cb)                  
+                checkbts.append(_cb)
             buttom = tk.Frame(F)
-            tk.Button(buttom , text = '确定',command =lambda: confirm(checkInfo)).pack(side = tk.LEFT , padx = 2)
-            tk.Button(buttom, text ='取消',command = canser).pack(side = tk.LEFT, padx =2)
+            tk.Button(buttom, text='确定', command=lambda: confirm(checkInfo)).pack(side=tk.LEFT, padx=2)
+            tk.Button(buttom, text='取消', command=canser).pack(side=tk.LEFT, padx=2)
             top.pack()
             mid.pack()
             buttom.pack()
-            self.root.attributes('-disable',1)
+            self.root.attributes('-disable', 1)
         elif isWhat == 'cell':
-            menu = tk.Menu(self.orderTable ,tearoff = False)
-            menu.add_command(label = '复制' ,command = phoneCopy)
-            menu.add_command(label = '确认充值完成' ,command = successConfirm)
+            menu = tk.Menu(self.orderTable, tearoff=False)
+            menu.add_command(label='复制', command=phoneCopy)
+            menu.add_command(label='确认充值完成', command=successConfirm)
             menu.add_separator()
-            menu.add_command(label = '查询号码余额',command = queryAccountBalance)
-            menu.add_command(label = '上传凭证',command =  uploadPicture)
-            menu.add_command(label = '确认充值失败' ,command = failConfirm)
-            #menu.add_command(label = '导出EXCEL文件', command = exportExcel)
-            menu.post(event.x_root ,event.y_root)
+            menu.add_command(label='查询号码余额', command=queryAccountBalance)
+            menu.add_command(label='上传凭证', command=uploadPicture)
+            menu.add_command(label='确认充值失败', command=failConfirm)
+            # menu.add_command(label = '导出EXCEL文件', command = exportExcel)
+            menu.post(event.x_root, event.y_root)
 
-                
-    def myPost(self,url , data = {} ,cookies = None):
-        if cookies:
-            response = requests.post(url , headers  = self.header , data = json.dumps(data) ,cookies = cookies)
-        else :
-            response = requests.post(url , headers  = self.header , data = json.dumps(data),cookies = self.cookies)
-        
-        return response
-    
-    def checkCount(self , event = None):
-        #网络登录部分
-        loginUrl = 'http://duihuantu.com/Api/User/SignIn'
-        header = self.header
-        user = self.username.get()
-        pwd = self.pwd.get()
-        if  user and pwd :
-            data = {"account":str(user) ,"password":str(pwd) ,"rememberme":""}
-            response = requests.post(loginUrl , headers  = header ,data = json.dumps(data))
-            #print (response.text)
-            result = response.json()
-            self.cookies = response.cookies
-            #with  open('cookies' , 'wb') as cookiesFile:
-            #    pickle.dump(self.cookies,cookiesFile)
-            if result.get('Message') != '登录成功':
-                tkinter.messagebox.showwarning('警告','用户名或者密码错误！')
-            else:
-                
-                self.loginFrame.destroy()
-                self.mainPage(result)
-                self.aotuReflash()
-                
-                self.printLog('系统登录成功；用户名：%s'%user)
-                if self.saveCount.get() == 1:
-                    with open('GLusers.txt','w') as f:
-                        f.write(user+'-'+pwd)
-                   
-            
-            
-        else :
-            tkinter.messagebox.showinfo('注意','用户名或者密码不能为空')
-    def getSupplyPrice(self):
-        url = 'http://duihuantu.com/Api/Charge/GetSupplyPrice'
-        data = self.getInfo(url)
-        data = data.values()
-        return [i.get("Price") for i in data]
-    
-        
-        
+    '''
+        功能：刷新提现的余额
+        返回：无
+        '''
+
     def reflashBalance(self):
         balanceInfo = self.getBalance()
-        showBalace = '总提现额度:%s ; 可提现余额:%s'%(balanceInfo.get('TotalTradeAmount'),balanceInfo.get('Balance'))
+        showBalace = '总提现额度:%s ; 可提现余额:%s' % (balanceInfo.get('TotalTradeAmount'), balanceInfo.get('Balance'))
         self.balanceInfoLabel["text"] = showBalace
         self.printLog('刷新余额成功....')
+
+    '''
+        功能：刷新订单；假设订单 无变化，则不刷新（刷新的同时也是插入表格数据的过程顺带刷新余额）
+        返回：无
+        '''
+
     def refreshTable(self):
         orders = self.getPhoneInfo()
         if orders == self.ordersInfo:
@@ -612,34 +753,34 @@ class loginPanle():
             self.deleteTable(self.orderTable)
             sequence = 0
             for order in orders:
-                #排序
+                # 排序
                 sequence += 1
-                #手机号
+                # 手机号
                 phoneNumber = order.get('Account')
-                #详情
+                # 详情
                 ProductName = order.get('ProductName')
-                #平台需支付你
+                # 平台需支付你
                 CostPrice = order.get('CostPrice')
-                #充值前、后
+                # 充值前、后
                 PreBalance = str(order.get("PreBalance"))
                 PostBlance = str(order.get("PostBlance"))
-                #状态
+                # 状态
                 State = order.get('State')
-                #id
+                # id
                 Id = order.get("Id")
-                #抢单时间
-                createTime= self.changeTime(order.get("SupCreateTime"))
-                #结算时间
-                completeTime=self.changeTime(order.get("CompleteTime"))
+                # 抢单时间
+                createTime = self.changeTime(order.get("SupCreateTime"))
+                # 结算时间
+                completeTime = self.changeTime(order.get("CompleteTime"))
                 if completeTime:
                     completeTime = '暂无'
-                #FilePath是否上传了文件
+                # FilePath是否上传了文件
                 isUploadFile = order.get("FilePath")
                 if isUploadFile:
                     isUploadFile = '已上传'
                 else:
                     isUploadFile = '未上传'
-                
+
                 if State == 4:
                     State = '充值成功'
                 elif State == 5:
@@ -648,16 +789,28 @@ class loginPanle():
                     State = '供货商充值中'
                 elif State == 11:
                     State = '供货商充值完成'
-                self.orderTable.insert('',sequence -1 , values =(sequence ,phoneNumber , ProductName,CostPrice , PreBalance+"/"+PostBlance , State,createTime,isUploadFile,Id ,completeTime))
+                self.orderTable.insert('', sequence - 1, values=(
+                sequence, phoneNumber, ProductName, CostPrice, PreBalance + "/" + PostBlance, State, createTime,
+                isUploadFile, Id, completeTime))
             self.colorTable(self.orderTable)
             self.refreshTotalLabel()
         self.printLog('刷新订单信息成功(订单有更新)....')
+        '''
+            功能：界面的刷新按钮；全部都刷新一次
+            返回：无
+            '''
+
     def refreshMount(self):
         orderInfo = self.getStandbyOrderNum()
         for i in range((len(self.leatestMountLabels))):
             self.leatestMountLabels[i]['text'] = ' ' + str(list(orderInfo.values())[i]) + '  单'
         self.refreshTable()
         self.reflashBalance()
+        '''
+            功能：刷新合计面板
+            返回：无
+            '''
+
     def refreshTotalLabel(self):
         items = self.orderTable.get_children()
         totalMoney = 0
@@ -667,60 +820,65 @@ class loginPanle():
         ingOrder = 0
         totalInfo = ''
         for i in items:
-            oneColumn = self.orderTable.item(i,'values')
+            oneColumn = self.orderTable.item(i, 'values')
             if oneColumn[3] and oneColumn[5]:
                 totalOrder += 1
-                totalMoney += float (oneColumn[3])
+                totalMoney += float(oneColumn[3])
                 if oneColumn[5] == '充值成功':
                     successOrder += 1
                 elif oneColumn[5] == '充值失败':
                     failedOrder += 1
                 else:
                     ingOrder += 1
-        totalInfo = '合计：今日获取总笔数%s(成功%s 失败%s 进行中%s)；今日累计赚取：%s元'%(totalOrder,successOrder,failedOrder,ingOrder,totalMoney)
-        self.totalLabel['text']= totalInfo
-    def getBalance(self):
-        '''
-        #获取余额，总提现等信息
-        {'Data':
-        {'Balance': 0.0,
-        'FreezeBalance': 0.0,
-        'TotalCommissionBalance': 0.0,
-        'TotalTradeAmount': 234259.12},
-        'Message': '余额查询成功', 'State': 0}
-        '''
-        url = 'http://duihuantu.com/Api/Finance/GetBalance'
-        return self.getInfo(url)
-    #########提现功能##################
-    def balance2Count(self , amount):
+        totalInfo = '合计：今日获取总笔数%s(成功%s 失败%s 进行中%s)；今日累计赚取：%s元' % (
+        totalOrder, successOrder, failedOrder, ingOrder, round(totalMoney, 2))
+        self.totalLabel['text'] = totalInfo
+
+    '''
+                  功能： 自动刷新
+                  返回：无
+    '''
+    def aotuReflash(self , times = 8):
+        def reflash():
+            while True :
+                try:
+                    self.refreshMount()
+                    time.sleep(times)
+                except:
+                    return
+        self.myThreading(reflash ,name = '自动刷新')
+        #t = threading.Thread(target = reflash )
+        #t.start()
+
+#**************************************************************************#
+#                          工具函数部分                                      #
+#**************************************************************************#
+
+    '''
+    post请求数据，可不带cookies
+    返回：响应
+    '''
+    def myPost(self,url , data = {} ,cookies = None):
+        if cookies:
+            response = requests.post(url , headers  = self.header , data = json.dumps(data) ,cookies = cookies)
+        else :
+            response = requests.post(url , headers  = self.header , data = json.dumps(data),cookies = self.cookies)
         
-        url = "http://duihuantu.com/Api/Finance/TransferApply"
-        if not amount:
-            balanceInfo = self.getBalance()
-            amount = balanceInfo.get('Balance')
-        postData = {"amount":float(amount)}
-        if tkinter.messagebox.askyesno('提现确认','确认提现%s元吗'%amount):
-            result = self.postInfo(url,postData)
-            tkinter.messagebox.showinfo("提示",result.get("Message"))
-            self.printLog('提现：%s'%amount+'元'+result.get("Message"))
-            self.reflashBalance()
-    
-    def getStandbyOrderNum(self):
-        '''
-        获取当前的单数
-        {'Amount10': 1, 'Amount20': 0, 'Amount30': 0, 'Amount50': 0, 'Amount100': 0,
-        'Amount200': 0, 'Amount300': 0, 'Amount500': 0} <class 'dict'>
-        '''
-        url = 'http://duihuantu.com/Api/Charge/GetStandbyOrderNum'
-        return self.getInfo(url)
+        return response
+
+    '''
+               功能：统一处理返回名字为Data 的jon数据
+               返回：返回的data(基本为dict格式)
+    '''
     def getInfo(self , url):
-        '''
-        统一处理返回名字为Data 的jon数据
-        '''
         response = requests.post(url , headers = self.header , cookies = self.cookies)
         balanceJson = response.json()
         Data = balanceJson.get('Data')
         return Data
+    '''
+               功能：统一处理返回名字为Data 的jon数据（需有提交的数据）
+               返回：返回的data(基本为dict格式)
+    '''
     def postInfo(self , url,postData):
         '''
         {"amount":500}
@@ -729,79 +887,17 @@ class loginPanle():
         response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(postData))
         result = response.json()
         return result
-    def getPhoneInfo(self):
-        '''
-        这是一个获取抢到的订单的信息的面板
-        
-        '''
-        today = time.strftime('%Y-%m-%d ',time.localtime(time.time()))
-        #今天的n天后的日期。
-        
-        today=datetime.datetime.now()
-        delta=datetime.timedelta(days=0)
-        n_days=today-delta
-        #print(n_days.strftime('%Y-%m-%d '),today.strftime("%Y-%m-%d "))
-        url = 'http://duihuantu.com/Api/Charge/GetPage'
-        data = {"pageIndex":1,"pageSize":15,"state":"","startTime":str(n_days.strftime('%Y-%m-%d '))+" 00:00:00","endTime":str(today.strftime("%Y-%m-%d "))+" 23:59:59","account":""}
-        response = self.myPost(url,data).json()
-        result = response.get('Data').get('Rows')
-        self.totalPhones = response.get("Data").get("total")
-        return result
-        
-    def beginGetPhone(self , bt):
-        '''
-        开始抢单
-        postdata格式：{"amount":"500","province":"","num":"1"}
-        '''
-        self.refreshTable()
-        #self.playSound()
-        url = 'http://duihuantu.com/Api/Charge/GetOrder'
-        amount = self.sizeVar.get()
-        num = self.comboVar.get()
-        if amount and num:
-            num = int(num)
-            bt['state'] = tk.DISABLED
-            bt['text'] = '抢单ing....'
-            data = {"amount":amount,"province":"","num":'1'}
-            print(data)
-            bt.update()
-            self.ISRUNING = True
-        else :
-            tkinter.messagebox.showinfo('警告','请选择抢单数量和抢单面额')
-            return
-        nowPhones = self.totalPhones
-        nowOrder = 0
-        while nowOrder < num:
-            #是否点击停止抢单
-            if not self.ISRUNING:
-                break
-            response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(data))
-            result = response.json()
-            Message = result.get('Message')
-            Data = result.get('Data')
-            if Message != '暂无订单':
-                self.refreshTable()
-                self.printLog( str(result))
-                self.playSound()
-                nowOrder = self.totalPhones - nowPhones
-                #print(nowOrder)
-                #nowOrder += 1
-                
-                
-            self.printLog(str(Message))
-        
-        self.endGetPhoneBt(bt)
-    
-    def endGetPhoneBt(self , bt):
-        '''
-        结束抢单
-        '''
-        bt['state'] = tk.NORMAL
-        bt['text'] = '开始抢单'
-        self.ISRUNING = False
+
+    '''
+                  功能： 获取当前时间
+                  返回：无
+    '''
     def getNowTime(self):
         return str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-    
+    '''
+                  功能： tree上色
+                  返回：无
+    '''
   
     def colorTable(self,tree):
         items = tree.get_children()
@@ -810,11 +906,19 @@ class loginPanle():
                 self.orderTable.item(items[i] , tags = ('oddrow'))
         tree.tag_configure('oddrow' , background = '#eeeeff')
         tree.update()
+    '''
+                  功能： 删除存在的tree数据
+                  返回：无
+    '''
     def deleteTable(self,tree):
         items = tree.get_children()
         for i in items:
             self.orderTable.delete(i)
-        
+
+    '''
+                  功能： 打印界面和本地log
+                  返回：无
+    '''
     def printLog(self , log):
         #self.logTextFelid['state'] = tk.NORMAL
         myLog = '【' + str(self.textIndex) + '】' + self.getNowTime() + '--INFO--' + log + "\n"
@@ -829,11 +933,19 @@ class loginPanle():
         if self.getTimes > 1100:
             self.getTimes = 100
             self.logTextFelid.delete('1.0','1000.0')
+    '''
+                  功能： 开启我的线程
+                  返回：无
+    '''
     def myThreading(self,func,args = {},name = '抢单'):
         mythreading = threading.Thread(target = func , args = args)
         mythreading.start()
         self.printLog('%s线程开启....'%name)
-    #字符串转换时间
+
+    '''
+                  功能： 字符串转换时间
+                  返回：无
+    '''
     def changeTime(self ,string):
         #/Date(1545875078247)/
         #print(string)
@@ -842,29 +954,100 @@ class loginPanle():
             return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(string)))
         else:
             return "无"
+    '''
+                  功能： 关闭系统时需做的事情
+                  返回：无
+    '''
     def closeSys(self):
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
             #self.printLog('系统退出')
             self.root.destroy()
-            
+
+    '''
+                  功能： 播放声音
+                  返回：无
+    '''
     def playSound(self):
         try:
             if self.openSound.get() == 1:
                 winsound.PlaySound('notice.wav', winsound.SND_ASYNC)
         except:
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
-        
-    def aotuReflash(self , times = 8):
-        def reflash():
-            while True :
-                try:
-                    self.refreshMount()
-                    time.sleep(times)
-                except:
-                    return
-        self.myThreading(reflash ,name = '自动刷新')
-        #t = threading.Thread(target = reflash )
-        #t.start()
+    '''
+    功能：提供多进程进行抢单
+    '''
+
+
+    def getPhoneProcessing(self ,processNumber = 4, needPhones = 1):
+        def getPhones(needPhones_ , getedPhones_ ,nowPhones_   ):
+            getedPhones_ = getedPhones_.get()
+            self.postInfo('刚进入进程是获取的公共号数：%s'%getedPhones)
+            while getedPhones_ < needPhones_:
+                # 是否点击停止抢单
+                if not self.ISRUNING:
+                    processTerminate()
+                    break
+                #抢单函数
+                result = self.postInfo(url, data)
+                Message = result.get('Message')
+                #通讯
+                if Message != '暂无订单':
+                    self.refreshTable()
+                    self.printLog(result)
+                    self.playSound()
+                    getedPhones_ = self.totalPhones - nowPhones_
+                    if getedPhones_.qsize() == 0:
+                        getedPhones_.put(getedPhones_)
+
+
+                #没抢到
+                else:
+                    print('没抢到。。。当前数：%s'%getedPhones)
+                    if getedPhones_.qsize() == 0:
+                        getedPhones_.put(getedPhones_)
+                #下一阶段的开始了
+                getedPhones_ = getedPhones_.get()
+
+            getedPhones_.put(needPhones_)
+
+
+
+
+        def processTerminate():
+            for p in myProcess:
+                p.terminate()
+                
+        #预处理
+        url = 'http://duihuantu.com/Api/Charge/GetOrder'
+        amount = self.sizeVar.get()
+        num = self.comboVar.get()
+        if amount and num:
+            num = int(num)
+            self.beginGetPhoneBt['state'] = tk.DISABLED
+            self.beginGetPhoneBt['text'] = '抢单ing....'
+            data = {"amount": amount, "province": "", "num": '1'}
+            self.printLog(str(data))
+            self.beginGetPhoneBt.update()
+            self.ISRUNING = True
+        else:
+            tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
+            return
+        #面板上的订单数量
+        nowPhones = self.totalPhones
+        #抢单时的数量
+        getedPhones = Queue(1)
+        getedPhones.put(0)
+        myProcess = []
+
+        for i in range(processNumber):
+            process = Process(target= getPhones ,args=(getedPhones ,nowPhones ,))
+            #process = Process(target=self.g)
+            process.start()
+            self.printLog('开启线程。。。')
+            myProcess.append(process)
+
+
+
             
         
 #for 注册
