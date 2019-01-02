@@ -503,7 +503,7 @@ class loginPanle():
             Message = result.get('Message')
             if Message != '暂无订单':
                 self.refreshTable()
-                self.printLog(result)
+                self.printLog(str(result))
                 self.playSound()
                 nowOrder = self.totalPhones - nowPhones
 
