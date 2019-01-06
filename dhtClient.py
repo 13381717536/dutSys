@@ -45,7 +45,6 @@ class loginPanle():
             }
         self.ini = {}
         self.loadIni()
-        self.loadIni()
         self.setupUI()
 
  # **************************************************************************#
