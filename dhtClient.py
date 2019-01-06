@@ -835,14 +835,15 @@ class loginPanle():
                   功能： 自动刷新
                   返回：无
     '''
-    def aotuReflash(self , times = 8):
+    def aotuReflash(self):
         def reflash():
             while True :
                 try:
                     self.refreshMount()
-                    time.sleep(times)
+                    time.sleep(int(self.autoRefreshSpace.get()))
                 except:
                     return
+
         self.myThreading(reflash ,name = '自动刷新')
         #t = threading.Thread(target = reflash )
         #t.start()
