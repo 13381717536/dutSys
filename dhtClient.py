@@ -24,9 +24,11 @@ class loginPanle():
         self.username = tk.StringVar()
         #self.username.set('18482322413')
         self.pwd = tk.StringVar()
+        self.iniPath = 'GLusers.pkl'
         #self.pwd.set('z123456')
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
+        self.autoRefreshSpace = tk.StringVar()
         #是否在抢单中
         self.ISRUNING = False
         self.ordersInfo = []
@@ -41,6 +43,9 @@ class loginPanle():
             'Accept-Language': 'zh-CN,zh;q=0.9',
             'Content-Type': 'application/json'#这个对于post 的解析不同，可深入研究
             }
+        self.ini = {}
+        self.loadIni()
+        self.loadIni()
         self.setupUI()
 
  # **************************************************************************#
@@ -63,14 +68,6 @@ class loginPanle():
         canserBt.grid(row = 2,column = 1 )
         passwordEntry.bind('<Return>',self.checkCount)
         self.loginFrame.pack()
-        userPath = 'GLusers.txt'
-        if os.path.isfile(userPath):
-            with open(userPath,'r') as f:
-                            result = f.readline()
-                            user , name = result.split('-')
-                            self.username.set(user)
-                            self.pwd.set(name)
-        
         self.root.protocol('WM_DELETE_WINDOW',self.closeSys)
 
     def registPage(self):
@@ -383,6 +380,10 @@ class loginPanle():
         soundLabel.grid(row = 0 , column = 0)
         soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound)
         soundCheckBt.grid(row = 0 , column = 1)
+        autoRefreshSpaceLabel = tk.Label(settingPanelTab , text = '自动刷新的间隔(S)')
+        autoRefreshSpaceLabel.grid(row = 0 ,column = 2)
+        autoRefreshSpaceEntry = tk.Entry(settingPanelTab,textvariable = self.autoRefreshSpace ,width = 5)
+        autoRefreshSpaceEntry.grid(row = 0 , column = 3)
 
  # **************************************************************************#
  #                          业务函数部分                                       #
@@ -416,11 +417,8 @@ class loginPanle():
 
                 self.printLog('系统登录成功；用户名：%s' % user)
                 if self.saveCount.get() == 1:
-                    with open('GLusers.txt', 'w') as f:
-                        f.write(user + '-' + pwd)
-
-
-
+                    self.ini['user'] = user
+                    self.ini['pwd'] = pwd
         else:
             tkinter.messagebox.showinfo('注意', '用户名或者密码不能为空')
 
@@ -855,6 +853,40 @@ class loginPanle():
 #**************************************************************************#
 
     '''
+    功能：保存配置项
+    返回：
+    
+    '''
+    def saveIni(self):
+        with open(self.iniPath,'wb') as f:
+            pickle.dump(self.ini , f)
+
+    '''
+    功能：加载配置项
+    
+    '''
+    def loadIni(self):
+        if os.path.isfile(self.iniPath):
+            with open(self.iniPath , 'rb') as f:
+
+                self.ini = pickle.load(f)
+                self.username.set( self.ini['user'])
+                self.pwd.set(self.ini['pwd'])
+                self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
+                self.openSound.set(self.ini['openSound'])
+        else:
+             self.ini = {
+                'user':'',
+                'pwd':'',
+                'autoRefreshSpace':10,
+                'openSound':0
+             }
+             self.username.set(self.ini['user'])
+             self.pwd.set(self.ini['pwd'])
+             self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
+             self.openSound.set(self.ini['openSound'])
+
+    '''
     post请求数据，可不带cookies
     返回：响应
     '''
@@ -960,6 +992,9 @@ class loginPanle():
     '''
     def closeSys(self):
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
+            self.ini['autoRefreshSpace'] = self.autoRefreshSpace.get()
+            self.ini['openSound'] = self.openSound.get()
+            self.saveIni()
             #self.printLog('系统退出')
             self.root.destroy()
 
@@ -1061,6 +1096,7 @@ class myEntry(tk.Entry):
         self.config(fg = '#dbdbdb' )
         self.config(textvariable = self.stringVar)
         self.count = 0
+
         self.bind('<FocusIn>' , self.firstClickClear)
         self.bind('<FocusOut>' , self.cheakContent)
     def firstClickClear(self ,event):
