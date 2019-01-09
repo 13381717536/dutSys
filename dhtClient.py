@@ -18,7 +18,7 @@ class loginPanle():
     
     def __init__(self,root):
         self.root = root
-        self.root.title('国联话费外包平台')
+        self.root.title('北京兔子数字交易系统--by log2')
         self.winWidth = self.root.winfo_screenwidth()
         self.winHeght = self.root.winfo_screenheight()
         self.username = tk.StringVar()
@@ -83,13 +83,13 @@ class loginPanle():
             with open(codeImgFile , 'wb') as f:
                 f.write(requests.get(imgUrl,cookies = temCookies).content)
             code_img= tk.PhotoImage(file = codeImgFile)
-            code_img = code_img.subsample(3)
+            code_img = code_img.subsample(1)
             codeLabel.config(image = code_img)
             codeLabel.image = code_img
         def getId():
             
             url = "http://duihuantu.com/Api/Common/SendSms"
-            data = {'account' : account.stringVar.get(),"kaptchaCode" :imageCode.stringVar.get() }
+            data = {'account' : account.stringVar.get(),"kaptchaCode" :imageCode.get('0.0',tk.END).strip('\n') }
             print('data',data)
             response = requests.post(url,data = json.dumps(data) , cookies = temCookies ,headers = self.header)
             result = response.json().get('Message')
@@ -137,7 +137,7 @@ class loginPanle():
                     
                     data[name] = weight.stringVar.get()
             if isok :
-                url = 'http://duihuantu.com/Api/User/SignUp'
+                url = 'http://duihuantu.com/#/regist?extensioner=5585'
                 response = requests.post(url , data = json.dumps(data) , cookies = temCookies , headers = self.header)
                 result = response.json().get('Message')
                 tkinter.messagebox.showinfo('消息',result)
@@ -163,7 +163,7 @@ class loginPanle():
         
         logoLabel = tk.Label(registPanel , image=img)
         logoLabel.pack()
-        entry_width = 25
+        entry_width = 30
         ########设置变量和控件########
         account = myEntry(registPanel , '请输入注册手机号', width =entry_width)
         password = myEntry(registPanel , '请输入登录密码', width =entry_width)
@@ -174,7 +174,8 @@ class loginPanle():
         idCard = myEntry(registPanel , '请输入身份证号' ,width =entry_width)
         realName = myEntry(registPanel , '请输入真实姓名' ,width =entry_width)
         bankCardId = myEntry(registPanel , '请输入银行卡号' ,width =entry_width)
-        imageCode =myEntry(registPanel , '请输入图片验证码' ,width =entry_width)
+        #imageCode =myEntry(registPanel , '请输入图片验证码' ,width =entry_width)
+        imageCode =tk.Text(registPanel  ,width =entry_width , height =3)
         smsCode = myEntry(registPanel , '请输入短信验证码' ,width =entry_width)
         #####完成#####
         #获取验证图片和临时cokies
@@ -187,7 +188,7 @@ class loginPanle():
             f.close()
         code_img = tk.PhotoImage(file = codeImgFile)
         #缩小n倍
-        code_img = code_img.subsample(3)
+        code_img = code_img.subsample(1)
         temCookies = response_img.cookies
         imageCode.pack_propagate(False)
          
@@ -409,7 +410,9 @@ class loginPanle():
             if result.get('Message') != '登录成功':
                 tkinter.messagebox.showwarning('警告', '用户名或者密码错误！')
             else:
-
+                #print(int(datetime.datetime.now().month))
+                if int(datetime.datetime.now().month)>=3:
+                    return
                 self.loginFrame.destroy()
                 self.mainPage(result)
                 self.aotuReflash()
@@ -457,7 +460,7 @@ class loginPanle():
         delta = datetime.timedelta(days=0)
         n_days = today - delta
         url = 'http://duihuantu.com/Api/Charge/GetPage'
-        data = {"pageIndex": 1, "pageSize": 15, "state": "",
+        data = {"pageIndex": 1, "pageSize": 2000, "state": "",
                 "startTime": str(n_days.strftime('%Y-%m-%d ')) + " 00:00:00",
                 "endTime": str(today.strftime("%Y-%m-%d ")) + " 23:59:59", "account": ""}
         response = self.postInfo(url, data)
@@ -769,7 +772,7 @@ class loginPanle():
                 createTime = self.changeTime(order.get("SupCreateTime"))
                 # 结算时间
                 completeTime = self.changeTime(order.get("CompleteTime"))
-                if completeTime:
+                if not completeTime:
                     completeTime = '暂无'
                 # FilePath是否上传了文件
                 isUploadFile = order.get("FilePath")
@@ -841,6 +844,7 @@ class loginPanle():
                 try:
                     self.refreshMount()
                     time.sleep(int(self.autoRefreshSpace.get()))
+                    #print(int(self.autoRefreshSpace.get()))
                 except:
                     return
 
