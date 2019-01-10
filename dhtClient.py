@@ -457,7 +457,7 @@ class loginPanle():
         delta = datetime.timedelta(days=0)
         n_days = today - delta
         url = 'http://duihuantu.com/Api/Charge/GetPage'
-        data = {"pageIndex": 1, "pageSize": 15, "state": "",
+        data = {"pageIndex": 1, "pageSize": 1000, "state": "",
                 "startTime": str(n_days.strftime('%Y-%m-%d ')) + " 00:00:00",
                 "endTime": str(today.strftime("%Y-%m-%d ")) + " 23:59:59", "account": ""}
         response = self.postInfo(url, data)
