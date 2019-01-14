@@ -431,8 +431,9 @@ class loginPanle():
     def getSupplyPrice(self):
         url = 'http://duihuantu.com/Api/Charge/GetSupplyPrice'
         data = self.getInfo(url)
-        data = data.values()
-        return [i.get("Price") for i in data]
+        if data:
+            data = data.values()
+            return [i.get("Price") for i in data]
 
     '''
                功能：获取当前可获取的订单数量
@@ -502,14 +503,15 @@ class loginPanle():
             if not self.ISRUNING:
                 break
             result = self.postInfo(url, data)
-            Message = result.get('Message')
-            if Message != '暂无订单':
-                self.refreshTable()
-                self.printLog(str(result))
-                self.playSound()
-                nowOrder = self.totalPhones - nowPhones
+            if result:
+                Message = result.get('Message')
+                if Message != '暂无订单':
+                    self.refreshTable()
+                    self.printLog(str(result))
+                    self.playSound()
+                    nowOrder = self.totalPhones - nowPhones
 
-            self.printLog(Message)
+                self.printLog(Message)
 
         self.endGetPhoneBt(bt)
 
@@ -909,10 +911,13 @@ class loginPanle():
                返回：返回的data(基本为dict格式)
     '''
     def getInfo(self , url):
-        response = requests.post(url , headers = self.header , cookies = self.cookies)
-        balanceJson = response.json()
-        Data = balanceJson.get('Data')
-        return Data
+        try:
+            response = requests.post(url , headers = self.header , cookies = self.cookies  , timeout=5)
+            balanceJson = response.json()
+            Data = balanceJson.get('Data')
+            return Data
+        except:
+            self.printLog('超时或者相应失败...跳过')
     '''
                功能：统一处理返回名字为Data 的jon数据（需有提交的数据）
                返回：返回的data(基本为dict格式)
@@ -922,9 +927,14 @@ class loginPanle():
         {"amount":500}
         统一处理返回名字为Data 的jon数据
         '''
-        response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(postData))
-        result = response.json()
-        return result
+        try:
+            response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(postData), timeout=5)
+            result = response.json()
+            return result
+        except:
+            print('超时或者相应失败...跳过')
+            self.printLog('超时或者相应失败...跳过')
+            
 
     '''
                   功能： 获取当前时间
