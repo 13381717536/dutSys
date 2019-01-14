@@ -917,7 +917,7 @@ class loginPanle():
             Data = balanceJson.get('Data')
             return Data
         except:
-            self.printLog('超时或者相应失败...跳过')
+            self.printLog('响应超时或者失败...跳过')
     '''
                功能：统一处理返回名字为Data 的jon数据（需有提交的数据）
                返回：返回的data(基本为dict格式)
@@ -932,8 +932,8 @@ class loginPanle():
             result = response.json()
             return result
         except:
-            print('超时或者相应失败...跳过')
-            self.printLog('超时或者相应失败...跳过')
+            print('响应超时或者失败...跳过')
+            self.printLog('响应超时或者失败...跳过')
             
 
     '''
