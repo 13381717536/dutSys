@@ -401,16 +401,23 @@ class loginPanle():
         pwd = self.pwd.get()
         if user and pwd:
             data = {"account": str(user), "password": str(pwd), "rememberme": ""}
-            response = requests.post(loginUrl, headers=header, data=json.dumps(data))
-            # print (response.text)
-            result = response.json()
-            self.cookies = response.cookies
-            # with  open('cookies' , 'wb') as cookiesFile:
-            #    pickle.dump(self.cookies,cookiesFile)
+            #重连10次
+            for i in range(10):  
+                try :
+                    response = requests.post(loginUrl, headers=header, data=json.dumps(data))
+                    result = response.json()
+                    self.cookies = response.cookies
+                    break
+                except:
+                    self.printLog('连接失败.....重%s次连中'%i,isShow = False)
+                    if i == 9:
+                        self.printLog('连接失败.....退出此次登录，检查网络',isShow = False)
+                        tkinter.messagebox.showinfo('提示...','连接失败.....退出此次登录，请检查网络')
+                        return
+            
             if result.get('Message') != '登录成功':
                 tkinter.messagebox.showwarning('警告', '用户名或者密码错误！')
             else:
-                #print(int(datetime.datetime.now().month))
                 if int(datetime.datetime.now().month)>=3:
                     return
                 self.loginFrame.destroy()
@@ -851,10 +858,24 @@ class loginPanle():
                     #print(int(self.autoRefreshSpace.get()))
                 except:
                     return
+        def checkAotuThreadExsit(t):
+            while True:
+                if t.isAlive:
+                    time.sleep(10)
+                    #print('检查OK')
+                else:
+                    self.aotuReflash()
+                    self.printLog('重启自动刷新线程....')
+                    return
 
-        self.myThreading(reflash ,name = '自动刷新')
-        #t = threading.Thread(target = reflash )
-        #t.start()
+        t = threading.Thread(target = reflash)
+        t.start()
+        self.printLog('自动刷新线程开启....')
+        self.myThreading(checkAotuThreadExsit,args = (t,) ,name = '守护自动刷新线程')
+    
+                
+            
+        
 
 #**************************************************************************#
 #                          工具函数部分                                      #
@@ -967,20 +988,21 @@ class loginPanle():
                   功能： 打印界面和本地log
                   返回：无
     '''
-    def printLog(self , log):
+    def printLog(self , log , isShow = True):
         #self.logTextFelid['state'] = tk.NORMAL
         myLog = '【' + str(self.textIndex) + '】' + self.getNowTime() + '--INFO--' + log + "\n"
-        self.logTextFelid.insert(tk.END , myLog)
-        self.logTextFelid.see(tk.END)
         with open('dhtLogs.log','a+') as f:
             f.write(myLog)
-        #self.logTextFelid['state'] = tk.DISABLED
-        self.logTextFelid.update()
-        self.textIndex += 1
-        self.getTimes += 1
-        if self.getTimes > 1100:
-            self.getTimes = 100
-            self.logTextFelid.delete('1.0','1000.0')
+        if isShow:
+            self.logTextFelid.insert(tk.END , myLog)
+            self.logTextFelid.see(tk.END)
+            #self.logTextFelid['state'] = tk.DISABLED
+            self.logTextFelid.update()
+            self.textIndex += 1
+            self.getTimes += 1
+            if self.getTimes > 1100:
+                self.getTimes = 100
+                self.logTextFelid.delete('1.0','1000.0')
     '''
                   功能： 开启我的线程
                   返回：无
