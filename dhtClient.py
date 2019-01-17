@@ -474,10 +474,11 @@ class loginPanle():
                 "startTime": str(n_days.strftime('%Y-%m-%d ')) + " 00:00:00",
                 "endTime": str(today.strftime("%Y-%m-%d ")) + " 23:59:59", "account": ""}
         response = self.postInfo(url, data)
-        result = response.get('Data').get('Rows')
-        # 此处返回当前sys界面的已存在的订单数
-        self.totalPhones = response.get("Data").get("total")
-        return result
+        if response:
+            result = response.get('Data').get('Rows')
+            # 此处返回当前sys界面的已存在的订单数
+            self.totalPhones = response.get("Data").get("total")
+            return result
 
     '''
                   功能：开始抢单
@@ -556,19 +557,23 @@ class loginPanle():
     '''
 
     def balance2Count(self, amount):
-
+        'http://duihuantu.com/Api/Finance/TransferApply HTTP/1.1'
         url = "http://duihuantu.com/Api/Finance/TransferApply"
         if not amount:
             balanceInfo = self.getBalance()
             amount = balanceInfo.get('Balance')
-        postData = {"amount": float(amount)}
+        postData = {'tpye': 1 , "amount": float(amount)}
         if tkinter.messagebox.askyesno('提现确认', '确认提现%s元吗' % amount):
-            result = self.postInfo(url, postData).get("Message")
-
-            if result == '操作成功':
-                tkinter.messagebox.showinfo('提示', '提现：%s' % amount + '元' + result)
-            self.printLog('提现：%s' % amount + '元' + result)
-            self.reflashBalance()
+            respose = self.postInfo(url, postData)
+            if respose:
+                result=respose.get("Message")
+                if '成功' in result:
+                    tkinter.messagebox.showinfo('提示', '提现：%s' % amount + '元' + result)
+                self.printLog('提现：%s' % amount + '元' + result)
+                self.reflashBalance()
+            else:
+                self.printLog('提现失败...')
+                
 
     '''
     订单界面的右键菜单
@@ -755,7 +760,9 @@ class loginPanle():
 
     def refreshTable(self):
         orders = self.getPhoneInfo()
-        if orders == self.ordersInfo:
+        if not orders:
+            return
+        elif orders == self.ordersInfo:
             self.printLog('刷新订单信息成功(订单无变动)....')
             return
         else:
@@ -931,9 +938,9 @@ class loginPanle():
                功能：统一处理返回名字为Data 的jon数据
                返回：返回的data(基本为dict格式)
     '''
-    def getInfo(self , url):
+    def getInfo(self , url ,timeout = 10):
         try:
-            response = requests.post(url , headers = self.header , cookies = self.cookies  , timeout=5)
+            response = requests.post(url , headers = self.header , cookies = self.cookies  , timeout= timeout)
             balanceJson = response.json()
             Data = balanceJson.get('Data')
             return Data
@@ -943,13 +950,13 @@ class loginPanle():
                功能：统一处理返回名字为Data 的jon数据（需有提交的数据）
                返回：返回的data(基本为dict格式)
     '''
-    def postInfo(self , url,postData):
+    def postInfo(self , url,postData,timeout = 10):
         '''
         {"amount":500}
         统一处理返回名字为Data 的jon数据
         '''
         try:
-            response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(postData), timeout=5)
+            response = requests.post(url , headers = self.header , cookies = self.cookies , data = json.dumps(postData), timeout = timeout)
             result = response.json()
             return result
         except:
