@@ -23,13 +23,15 @@ class loginPanle():
         self.winHeght = self.root.winfo_screenheight()
         self.username = tk.StringVar()
         #self.username.set('18482322413')
+        #self.pwd.set('z123456')
         self.pwd = tk.StringVar()
         self.iniPath = 'GLusers.pkl'
-        #self.pwd.set('z123456')
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
         self.autoRefreshSpace = tk.StringVar()
+        self.orderState = tk.StringVar()
         #是否在抢单中
+        self._orderState = '全部'
         self.ISRUNING = False
         self.ordersInfo = []
         self.totalPhones = 0
@@ -229,6 +231,8 @@ class loginPanle():
         balancePanle_height = 40
         logPanel_height =220
         
+        
+        
         self.root.geometry('%dx%d+%d+%d'%(width_,height_,(self.winWidth-width_)/2,(self.winHeght-height_)/2))
         self.mainFrame = tk.Frame(self.root)
         self.mainFrame.pack()
@@ -270,6 +274,8 @@ class loginPanle():
         #getPhoneNumberCombobox.setvar('1')
         getPhoneNumberCombobox.pack(side = tk.LEFT , padx = 5)
         #开始和结束抢单按钮
+        #订单状态
+        
         self.beginGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '开始抢单')
         #self.beginGetPhoneBt.config(command = self.getPhoneProcessing)
         self.beginGetPhoneBt.config(command= lambda : self.beginGetPhone(self.beginGetPhoneBt))
@@ -281,7 +287,15 @@ class loginPanle():
         refreshMountBt = tk.Button(getPhoneSettingPanel , text = '刷新订单数量')
         refreshMountBt.config(command = self.refreshMount)
         refreshMountBt.pack(side = tk.LEFT , padx = 5)
+        #筛选显示的订单
+        orderStateLabel = tk.Label(getPhoneSettingPanel , text = '订单状态')
+        orderStateLabel.pack(side = tk.LEFT , padx = 2)
         
+        orderStateListbox = ttk.Combobox(getPhoneSettingPanel , textvariable = self.orderState ,state='readonly', width = 10)
+        orderStateListbox['values']=('全部','充值成功','供货商充值中','供货商充值完成','充值失败')
+        orderStateListbox.pack(side = tk.LEFT , padx = 2)
+        orderStateListbox.current(0)
+        #orderStateListbox.update()
         
 
         #*************抢单展示区域*****************#
@@ -321,7 +335,8 @@ class loginPanle():
         '''
         self.orderTable.pack( side = tk.LEFT ,fill = tk.BOTH)
         self.orderTable.bind('<Button-3>',self.showmenu)
-        
+        self.orderTable.bind('<Control-Key-C>',self.press_Ctrl_C)
+        self.orderTable.bind('<Control-Key-c>',self.press_Ctrl_C)
         
         #***********显示总提现额度，和提现功能********#
         balancePanle = tk.LabelFrame(self.mainFrame, width = width_ ,height = balancePanle_height)
@@ -384,6 +399,7 @@ class loginPanle():
         autoRefreshSpaceLabel.grid(row = 0 ,column = 2)
         autoRefreshSpaceEntry = tk.Entry(settingPanelTab,textvariable = self.autoRefreshSpace ,width = 5)
         autoRefreshSpaceEntry.grid(row = 0 , column = 3)
+
 
  # **************************************************************************#
  #                          业务函数部分                                       #
@@ -506,6 +522,7 @@ class loginPanle():
             return
         nowPhones = self.totalPhones
         nowOrder = 0
+        nowOrderBak = 0
         while nowOrder < num:
             # 是否点击停止抢单
             if not self.ISRUNING:
@@ -516,8 +533,11 @@ class loginPanle():
                 if Message != '暂无订单':
                     self.refreshTable()
                     self.printLog(str(result))
-                    self.playSound()
                     nowOrder = self.totalPhones - nowPhones
+                    #避免错误数据，导致错误提示
+                    if nowOrder != nowOrderBak:
+                        nowOrderBak = nowOrder
+                        self.playSound()
 
                 self.printLog(Message)
 
@@ -573,7 +593,26 @@ class loginPanle():
                 self.reflashBalance()
             else:
                 self.printLog('提现失败...')
-                
+    '''
+    订单界面ctrl+c复制
+    '''
+    def press_Ctrl_C(self , event):
+        def phoneCopy():
+            res = ''
+            selected = self.orderTable.selection()
+            for item in selected:
+                it = self.orderTable.item(item, 'values')
+                res += it[1] + '\n'
+            res = res.strip('\n')
+            self.root.clipboard_clear()
+            self.root.clipboard_append(res)
+            self.printLog('复制成功!\n'+res)
+        isWhat = self.orderTable.identify_region(event.x, event.y)
+        if isWhat == 'cell':
+            phoneCopy()
+            
+            
+        
 
     '''
     订单界面的右键菜单
@@ -610,9 +649,10 @@ class loginPanle():
             for item in selected:
                 it = self.orderTable.item(item, 'values')
                 res += it[1] + '\n'
+            res = res.strip('\n')
             self.root.clipboard_clear()
             self.root.clipboard_append(res)
-
+            self.printLog('复制成功!\n'+res)
         def successConfirm():
             selected = self.orderTable.selection()
 
@@ -733,7 +773,7 @@ class loginPanle():
             self.root.attributes('-disable', 1)
         elif isWhat == 'cell':
             menu = tk.Menu(self.orderTable, tearoff=False)
-            menu.add_command(label='复制', command=phoneCopy)
+            menu.add_command(label='复制（C）', command=phoneCopy)
             menu.add_command(label='确认充值完成', command=successConfirm)
             menu.add_separator()
             menu.add_command(label='查询号码余额', command=queryAccountBalance)
@@ -762,11 +802,12 @@ class loginPanle():
         orders = self.getPhoneInfo()
         if not orders:
             return
-        elif orders == self.ordersInfo:
+        elif orders == self.ordersInfo and self.orderState.get() == self._orderState :
             self.printLog('刷新订单信息成功(订单无变动)....')
             return
         else:
             self.ordersInfo = self.getPhoneInfo()
+            self._orderState = self.orderState.get()
         if len(orders) != 0:
             self.deleteTable(self.orderTable)
             sequence = 0
@@ -807,9 +848,13 @@ class loginPanle():
                     State = '供货商充值中'
                 elif State == 11:
                     State = '供货商充值完成'
-                self.orderTable.insert('', sequence - 1, values=(
-                sequence, phoneNumber, ProductName, CostPrice, PreBalance + "/" + PostBlance, State, createTime,
-                isUploadFile, Id, completeTime))
+                #筛选展示的订单
+                if self.orderState.get() ==State or self.orderState.get()== '全部':
+                    self.orderTable.insert('', sequence - 1, values=(
+                        sequence, phoneNumber, ProductName, CostPrice, PreBalance + "/" + PostBlance, State, createTime,
+                        isUploadFile, Id, completeTime))
+                    
+                    
             self.colorTable(self.orderTable)
             self.refreshTotalLabel()
         self.printLog('刷新订单信息成功(订单有更新)....')
@@ -830,24 +875,28 @@ class loginPanle():
             '''
 
     def refreshTotalLabel(self):
+        #通过返回的数据获取
+        info = self.ordersInfo
         items = self.orderTable.get_children()
         totalMoney = 0
-        totalOrder = 0
+        totalOrder = len(info)
         successOrder = 0
         failedOrder = 0
         ingOrder = 0
         totalInfo = ''
-        for i in items:
-            oneColumn = self.orderTable.item(i, 'values')
-            if oneColumn[3] and oneColumn[5]:
-                totalOrder += 1
-                totalMoney += float(oneColumn[3])
-                if oneColumn[5] == '充值成功':
-                    successOrder += 1
-                elif oneColumn[5] == '充值失败':
-                    failedOrder += 1
-                else:
-                    ingOrder += 1
+        for i in info:
+            
+            state  =  i.get('State')
+            totalMoney += float(i.get('CostPrice'))
+            if state == 4:
+                successOrder += 1
+               
+            elif state == 5:
+                failedOrder += 1
+               
+            else:
+                ingOrder += 1
+                
         totalInfo = '合计：今日获取总笔数%s(成功%s 失败%s 进行中%s)；今日累计赚取：%s元' % (
         totalOrder, successOrder, failedOrder, ingOrder, round(totalMoney, 2))
         self.totalLabel['text'] = totalInfo
@@ -960,7 +1009,7 @@ class loginPanle():
             result = response.json()
             return result
         except:
-            print('响应超时或者失败...跳过')
+            #print('响应超时或者失败...跳过')
             self.printLog('响应超时或者失败...跳过')
             
 
