@@ -30,6 +30,7 @@ class loginPanle():
         self.openSound = tk.IntVar()
         self.autoRefreshSpace = tk.StringVar()
         self.orderState = tk.StringVar()
+        self.threadNumbers = tk.IntVar()
         #是否在抢单中
         self._orderState = '全部'
         self.ISRUNING = False
@@ -277,7 +278,7 @@ class loginPanle():
         #订单状态
         
         self.beginGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '开始抢单')
-        self.beginGetPhoneBt.config(command = self.getPhoneThreads)
+        self.beginGetPhoneBt.config(command = lambda:self.getPhoneThreads())
         #self.beginGetPhoneBt.config(command= lambda : self.beginGetPhone(self.beginGetPhoneBt))
         endGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '停止抢单' )
         endGetPhoneBt.config(command = lambda : self.endGetPhoneBt(self.beginGetPhoneBt)  )
@@ -399,6 +400,11 @@ class loginPanle():
         autoRefreshSpaceLabel.grid(row = 0 ,column = 2)
         autoRefreshSpaceEntry = tk.Entry(settingPanelTab,textvariable = self.autoRefreshSpace ,width = 5)
         autoRefreshSpaceEntry.grid(row = 0 , column = 3)
+
+        threadNumbersLabel = tk.Label(settingPanelTab , text = '线程数')
+        threadNumbersLabel.grid(row = 0 ,column = 4)
+        threadNumbersEntry = tk.Entry(settingPanelTab,textvariable = self.threadNumbers ,width = 5)
+        threadNumbersEntry.grid(row = 0 , column = 5)
 
 
  # **************************************************************************#
@@ -833,6 +839,13 @@ class loginPanle():
                 createTime = self.changeTime(order.get("SupCreateTime"))
                 # 结算时间
                 completeTime = self.changeTime(order.get("CompleteTime"))
+                # 剩余时间
+                if State == 5: 
+                    remaindTime = self.remaindTime(self.changeTime(order.get("SupCreateTime") ,True))
+                else:
+                    remaindTime = 0
+                    
+                print(remaindTime)
                 if not completeTime:
                     completeTime = '暂无'
                 # FilePath是否上传了文件
@@ -960,18 +973,21 @@ class loginPanle():
                 self.username.set( self.ini['user'])
                 self.pwd.set(self.ini['pwd'])
                 self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
+                self.threadNumbers.set(self.ini['threadNumbers'])
                 self.openSound.set(self.ini['openSound'])
         else:
              self.ini = {
                 'user':'',
                 'pwd':'',
                 'autoRefreshSpace':10,
-                'openSound':0
+                'openSound':0,
+                'threadNumbers':2
              }
              self.username.set(self.ini['user'])
              self.pwd.set(self.ini['pwd'])
              self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
              self.openSound.set(self.ini['openSound'])
+             self.threadNumbers.set(self.ini['threadNumbers'])
 
     '''
     post请求数据，可不带cookies
@@ -1023,7 +1039,10 @@ class loginPanle():
         return str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
 
     def remaindTime(self , rowTime):
-        print(self.getNowTime())
+        t = int((float(time.time()) - float(rowTime))/60)
+        if t >20:
+            return 0
+        return 20 - t
         
     '''
                   功能： tree上色
@@ -1078,11 +1097,13 @@ class loginPanle():
                   功能： 字符串转换时间
                   返回：无
     '''
-    def changeTime(self ,string):
+    def changeTime(self ,string ,returnTime = False):
         #/Date(1545875078247)/
         #print(string)
         if string:
             string = string[6:16]
+            if returnTime:
+                return string
             return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(string)))
         else:
             return "无"
@@ -1094,6 +1115,7 @@ class loginPanle():
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
             self.ini['autoRefreshSpace'] = self.autoRefreshSpace.get()
             self.ini['openSound'] = self.openSound.get()
+            self.ini['threadNumbers'] = self.threadNumbers.get()
             self.saveIni()
             #self.printLog('系统退出')
             self.root.destroy()
@@ -1113,17 +1135,18 @@ class loginPanle():
     '''
     功能：提供多进程进行抢单
     '''
-    def getPhoneThreads(self ,processNumber = 6, needPhones = 1):
+    def getPhoneThreads(self ):
         def getPhones(threadName = ''):
             nowOrder = getedPhones.get()
             nowOrderBak = 0
-            self.printLog('刚启动线程，当前获取的手机号数：%s'%nowOrder)
+            self.printLog('启动线程，当前获取的手机号数：%s'%nowOrder)
             while nowOrder < needPhones:
                 
                 # 是否点击停止抢单
                 if not self.ISRUNING:
                     if getedPhones.qsize() == 0:
                         getedPhones.put(needPhones)
+                    self.printLog('线程%s：，结束抢单'%threadName)  
                     return
                 #抢单函数
                 result = self.postInfo(url, data)
@@ -1143,20 +1166,26 @@ class loginPanle():
                     if getedPhones.qsize() == 0:
                         getedPhones.put(nowOrder)
                     self.printLog('线程%s：'%threadName+str(Message))
+                else:
+                    self.printLog('线程%s：，跳过...'%threadName)
+                    if getedPhones.qsize() == 0:
+                        getedPhones.put(nowOrder)
 
         
                 #下一阶段的开始了
                 nowOrder = getedPhones.get()
             if getedPhones.qsize() == 0:
-                        getedPhones.put(needPhones)
+                getedPhones.put(needPhones)
+            self.printLog('线程%s：，结束抢单'%threadName)   
+            self.endGetPhoneBt(self.beginGetPhoneBt)
 
                 
         #预处理
         url = 'http://duihuantu.com/Api/Charge/GetOrder'
         amount = self.sizeVar.get()
-        num = self.comboVar.get()
-        if amount and num:
-            num = int(num)
+        needPhones = self.comboVar.get()
+        if amount and needPhones:
+            needPhones = int(needPhones)
             self.beginGetPhoneBt['state'] = tk.DISABLED
             self.beginGetPhoneBt['text'] = '抢单ing....'
             data = {"amount": amount, "province": "", "num": '1'}
@@ -1167,12 +1196,13 @@ class loginPanle():
             tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
             return
         #面板上的订单数量
+        
         nowPhones = self.totalPhones
         #抢单时的数量
         getedPhones = Queue(1)
         getedPhones.put(0)
         myThread = []
-        for i in range(processNumber):
+        for i in range(self.threadNumbers.get()):
             t = threading.Thread(target= getPhones , args = ('线程%s'%(i+1),))
             t.start()
             self.printLog('开启线程%s...'%t.name)
