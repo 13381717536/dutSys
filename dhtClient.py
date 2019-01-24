@@ -277,8 +277,8 @@ class loginPanle():
         #订单状态
         
         self.beginGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '开始抢单')
-        #self.beginGetPhoneBt.config(command = self.getPhoneProcessing)
-        self.beginGetPhoneBt.config(command= lambda : self.beginGetPhone(self.beginGetPhoneBt))
+        self.beginGetPhoneBt.config(command = self.getPhoneThreads)
+        #self.beginGetPhoneBt.config(command= lambda : self.beginGetPhone(self.beginGetPhoneBt))
         endGetPhoneBt = tk.Button(getPhoneSettingPanel , text = '停止抢单' )
         endGetPhoneBt.config(command = lambda : self.endGetPhoneBt(self.beginGetPhoneBt)  )
         self.beginGetPhoneBt.pack(side = tk.LEFT , padx = 5)
@@ -537,7 +537,9 @@ class loginPanle():
                     #避免错误数据，导致错误提示
                     if nowOrder != nowOrderBak:
                         nowOrderBak = nowOrder
+                        self.root.wm_attributes('-topmost',1)
                         self.playSound()
+                        self.root.wm_attributes('-topmost',0)
 
                 self.printLog(Message)
 
@@ -1019,6 +1021,10 @@ class loginPanle():
     '''
     def getNowTime(self):
         return str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
+
+    def remaindTime(self , rowTime):
+        print(self.getNowTime())
+        
     '''
                   功能： tree上色
                   返回：无
@@ -1102,49 +1108,48 @@ class loginPanle():
                 winsound.PlaySound('notice.wav', winsound.SND_ASYNC)
         except:
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
+
+    
     '''
     功能：提供多进程进行抢单
     '''
-
-
-    def getPhoneProcessing(self ,processNumber = 4, needPhones = 1):
-        def getPhones(needPhones_ , getedPhones_ ,nowPhones_   ):
-            getedPhones_ = getedPhones_.get()
-            self.postInfo('刚进入进程是获取的公共号数：%s'%getedPhones)
-            while getedPhones_ < needPhones_:
+    def getPhoneThreads(self ,processNumber = 6, needPhones = 1):
+        def getPhones(threadName = ''):
+            nowOrder = getedPhones.get()
+            nowOrderBak = 0
+            self.printLog('刚启动线程，当前获取的手机号数：%s'%nowOrder)
+            while nowOrder < needPhones:
+                
                 # 是否点击停止抢单
                 if not self.ISRUNING:
-                    processTerminate()
-                    break
+                    if getedPhones.qsize() == 0:
+                        getedPhones.put(needPhones)
+                    return
                 #抢单函数
                 result = self.postInfo(url, data)
-                Message = result.get('Message')
-                #通讯
-                if Message != '暂无订单':
-                    self.refreshTable()
-                    self.printLog(result)
-                    self.playSound()
-                    getedPhones_ = self.totalPhones - nowPhones_
-                    if getedPhones_.qsize() == 0:
-                        getedPhones_.put(getedPhones_)
+                if result:
+                    Message = result.get('Message')
+                    if Message != '暂无订单':
+                        self.refreshTable()
+                        self.printLog('线程%s'%threadName+str(result))
+                        nowOrder = self.totalPhones - nowPhones
+                        #避免错误数据，导致错误提示
+                        if nowOrder != nowOrderBak:
+                            nowOrderBak = nowOrder
+                            self.root.wm_attributes('-topmost',1)
+                            self.playSound()
+                            self.root.wm_attributes('-topmost',0)
+                    #把结果放入公共变量
+                    if getedPhones.qsize() == 0:
+                        getedPhones.put(nowOrder)
+                    self.printLog('线程%s：'%threadName+str(Message))
 
-
-                #没抢到
-                else:
-                    print('没抢到。。。当前数：%s'%getedPhones)
-                    if getedPhones_.qsize() == 0:
-                        getedPhones_.put(getedPhones_)
+        
                 #下一阶段的开始了
-                getedPhones_ = getedPhones_.get()
+                nowOrder = getedPhones.get()
+            if getedPhones.qsize() == 0:
+                        getedPhones.put(needPhones)
 
-            getedPhones_.put(needPhones_)
-
-
-
-
-        def processTerminate():
-            for p in myProcess:
-                p.terminate()
                 
         #预处理
         url = 'http://duihuantu.com/Api/Charge/GetOrder'
@@ -1166,14 +1171,12 @@ class loginPanle():
         #抢单时的数量
         getedPhones = Queue(1)
         getedPhones.put(0)
-        myProcess = []
-
+        myThread = []
         for i in range(processNumber):
-            process = Process(target= getPhones ,args=(getedPhones ,nowPhones ,))
-            #process = Process(target=self.g)
-            process.start()
-            self.printLog('开启线程。。。')
-            myProcess.append(process)
+            t = threading.Thread(target= getPhones , args = ('线程%s'%(i+1),))
+            t.start()
+            self.printLog('开启线程%s...'%t.name)
+            myThread.append(t)
 
 
 
