@@ -928,20 +928,18 @@ class loginPanle():
                     time.sleep(int(self.autoRefreshSpace.get()))
                     #print(int(self.autoRefreshSpace.get()))
                 except:
+                    self.printLog('发生异常...自动刷新线程结束')
                     return
-        def checkAotuThreadExsit(t):
+        def checkAotuThreadExsit(airmThread):
             while True:
-                if t.isAlive:
+                #print(airmThread.isAlive())
+                if airmThread.isAlive():
                     time.sleep(10)
-                    #print('检查OK')
                 else:
                     self.aotuReflash()
                     self.printLog('重启自动刷新线程....')
                     return
-
-        t = threading.Thread(target = reflash)
-        t.start()
-        self.printLog('自动刷新线程开启....')
+        t = self.myThreading(reflash ,name = '自动刷新线程')
         self.myThreading(checkAotuThreadExsit,args = (t,) ,name = '守护自动刷新线程')
     
                 
@@ -1092,6 +1090,7 @@ class loginPanle():
         mythreading = threading.Thread(target = func , args = args)
         mythreading.start()
         self.printLog('%s线程开启....'%name)
+        return mythreading
 
     '''
                   功能： 字符串转换时间
