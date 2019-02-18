@@ -44,7 +44,9 @@ class loginPanle():
             'Accept-Encoding': 'gzip, deflate',
             'Referer': 'http://duihuantu.com/',
             'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Content-Type': 'application/json'#这个对于post 的解析不同，可深入研究
+            'Content-Type': 'application/json',#这个对于post 的解析不同，可深入研究
+            'Host': 'duihuantu.com',
+            'Origin': 'http://duihuantu.com'
             }
         self.ini = {}
         self.loadIni()
@@ -292,10 +294,12 @@ class loginPanle():
         orderStateLabel = tk.Label(getPhoneSettingPanel , text = '订单状态')
         orderStateLabel.pack(side = tk.LEFT , padx = 2)
         
+        
         orderStateListbox = ttk.Combobox(getPhoneSettingPanel , textvariable = self.orderState ,state='readonly', width = 10)
         orderStateListbox['values']=('全部','充值成功','供货商充值中','供货商充值完成','充值失败')
         orderStateListbox.pack(side = tk.LEFT , padx = 2)
         orderStateListbox.current(0)
+        orderStateListbox.bind('<<ComboboxSelected>>',self.refreshTable)
         #orderStateListbox.update()
         
 
@@ -590,13 +594,16 @@ class loginPanle():
         if not amount:
             balanceInfo = self.getBalance()
             amount = balanceInfo.get('Balance')
-        postData = {'tpye': 1 , "amount": float(amount)}
+        postData = {'type': 1 , "amount": float(amount)}
         if tkinter.messagebox.askyesno('提现确认', '确认提现%s元吗' % amount):
             respose = self.postInfo(url, postData)
             if respose:
                 result=respose.get("Message")
                 if '成功' in result:
                     tkinter.messagebox.showinfo('提示', '提现：%s' % amount + '元' + result)
+                else:
+                    tkinter.messagebox.showinfo('警告！警告', '提现：%s' % amount + '元失败！！' + result)
+                    
                 self.printLog('提现：%s' % amount + '元' + result)
                 self.reflashBalance()
             else:
@@ -692,7 +699,7 @@ class loginPanle():
                 elif State == '供货商充值完成':
                     State = 11
 
-                if tkinter.messagebox.askyesno('确认失败？', '确认失败此笔订单吗'):
+                if tkinter.messagebox.askyesno('确认失败？', '确认失败此笔订单吗\n    %s'%it[self.orderTable['columns'].index('号码')]):
                     url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
                     data = {"orderId": orderId, "state": State}
                     result = self.postInfo(url, data)
@@ -806,7 +813,7 @@ class loginPanle():
         返回：无
         '''
 
-    def refreshTable(self):
+    def refreshTable(self , event = None ):
         orders = self.getPhoneInfo()
         if not orders:
             return
@@ -871,19 +878,19 @@ class loginPanle():
                     
                     
             self.colorTable(self.orderTable)
-            self.refreshTotalLabel()
         self.printLog('刷新订单信息成功(订单有更新)....')
         '''
             功能：界面的刷新按钮；全部都刷新一次
             返回：无
             '''
 
-    def refreshMount(self):
+    def refreshMount(self , event = None):
         orderInfo = self.getStandbyOrderNum()
         for i in range((len(self.leatestMountLabels))):
             self.leatestMountLabels[i]['text'] = ' ' + str(list(orderInfo.values())[i]) + '  单'
         self.refreshTable()
         self.reflashBalance()
+        self.refreshTotalLabel()
         '''
             功能：刷新合计面板
             返回：无
@@ -1132,7 +1139,7 @@ class loginPanle():
 
     
     '''
-    功能：提供多进程进行抢单
+    功能：提供多线程进行抢单
     '''
     def getPhoneThreads(self ):
         def getPhones(threadName = ''):
@@ -1158,9 +1165,9 @@ class loginPanle():
                         #避免错误数据，导致错误提示
                         if nowOrder != nowOrderBak:
                             nowOrderBak = nowOrder
-                            self.root.wm_attributes('-topmost',1)
+                            #self.root.wm_attributes('-topmost',1)
                             self.playSound()
-                            self.root.wm_attributes('-topmost',0)
+                            #self.root.wm_attributes('-topmost',0)
                     #把结果放入公共变量
                     if getedPhones.qsize() == 0:
                         getedPhones.put(nowOrder)
