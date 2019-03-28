@@ -264,7 +264,10 @@ class loginPanle():
             phoneFaceRadio.grid(row = 0, column = i+1 ,sticky = tk.W )
             leatestMountLabel.grid(row = 1, column = i+1 ,sticky = tk.W )
             self.leatestMountLabels.append(leatestMountLabel)
-            supplyPrice = tk.Label(orderInfoPanel , text = '￥'+ str(countPrices[i]))
+            try:
+                supplyPrice = tk.Label(orderInfoPanel , text = '￥'+ str(countPrices[i]))
+            except:
+                print('异常供应价格：',countPrices)
             supplyPrice.grid(row = 2 ,column = i+1 ,sticky = tk.W)
         #第三部分 放入一个  功能  setting 框
         getPhoneSettingPanel = tk.Frame(operateGroup)
@@ -444,7 +447,7 @@ class loginPanle():
             if result.get('Message') != '登录成功':
                 tkinter.messagebox.showwarning('警告', '用户名或者密码错误！')
             else:
-                if int(datetime.datetime.now().month)>=3:
+                if int(datetime.datetime.now().month)>=4:
                     return
                 self.loginFrame.destroy()
                 self.mainPage(result)
@@ -478,7 +481,13 @@ class loginPanle():
         'Amount200': 0, 'Amount300': 0, 'Amount500': 0} <class 'dict'>
         '''
         url = 'http://duihuantu.com/Api/Charge/GetStandbyOrderNum'
-        return self.getInfo(url)
+        res = self.getInfo(url)
+        if res:
+            return res
+        else:
+            return {'Amount10': 1, 'Amount20': 0, 'Amount30': 0, 'Amount50': 0, 'Amount100': 0,
+        'Amount200': 0, 'Amount300': 0, 'Amount500': 0}
+            #tkinter.messagebox.showerror('注意','网络错误，请检查网络后重登')
 
     '''
                功能：获取已经抢到的订单数
@@ -500,8 +509,12 @@ class loginPanle():
                 "startTime": str(n_days.strftime('%Y-%m-%d ')) + " 00:00:00",
                 "endTime": str(today.strftime("%Y-%m-%d ")) + " 23:59:59", "account": ""}
         response = self.postInfo(url, data)
-        if response:
-            result = response.get('Data').get('Rows')
+        if response :
+            try :
+                result = response.get('Data').get('Rows')
+            except:
+                print('异常获取订单:',response)
+                return
             # 此处返回当前sys界面的已存在的订单数
             self.totalPhones = response.get("Data").get("total")
             return result
@@ -581,7 +594,13 @@ class loginPanle():
         'Message': '余额查询成功', 'State': 0}
         '''
         url = 'http://duihuantu.com/Api/Finance/GetBalance'
-        return self.getInfo(url)
+        res = self.getInfo(url)
+        if res:
+            return res
+        else:
+            print('获取发生异常，兜底零钱信息0')
+            return {'Balance': 0, 'FreezeBalance': 0.0, 'TotalCommissionBalance': 0.0, 'TotalTradeAmount': 0}
+            
 
     '''
             功能：提现功能实现
@@ -804,6 +823,7 @@ class loginPanle():
 
     def reflashBalance(self):
         balanceInfo = self.getBalance()
+        #print(balanceInfo)
         showBalace = '总提现额度:%s ; 可提现余额:%s' % (balanceInfo.get('TotalTradeAmount'), balanceInfo.get('Balance'))
         self.balanceInfoLabel["text"] = showBalace
         self.printLog('刷新余额成功....')
@@ -852,7 +872,7 @@ class loginPanle():
                 else:
                     remaindTime = 0
                     
-                print(remaindTime)
+                #print(remaindTime)
                 if not completeTime:
                     completeTime = '暂无'
                 # FilePath是否上传了文件
@@ -1077,7 +1097,7 @@ class loginPanle():
     def printLog(self , log , isShow = True):
         #self.logTextFelid['state'] = tk.NORMAL
         myLog = '【' + str(self.textIndex) + '】' + self.getNowTime() + '--INFO--' + log + "\n"
-        with open('dhtLogs.log','a+') as f:
+        with open('dhtLogs.log','a+' ,encoding = 'utf-8') as f:
             f.write(myLog)
         if isShow:
             self.logTextFelid.insert(tk.END , myLog)
@@ -1194,7 +1214,7 @@ class loginPanle():
             needPhones = int(needPhones)
             self.beginGetPhoneBt['state'] = tk.DISABLED
             self.beginGetPhoneBt['text'] = '抢单ing....'
-            data = {"amount": amount, "province": "", "num": '1'}
+            data = {"amount": amount, "province": "", "num": '10'}
             self.printLog(str(data))
             self.beginGetPhoneBt.update()
             self.ISRUNING = True
