@@ -1214,7 +1214,7 @@ class loginPanle():
             needPhones = int(needPhones)
             self.beginGetPhoneBt['state'] = tk.DISABLED
             self.beginGetPhoneBt['text'] = '抢单ing....'
-            data = {"amount": amount, "province": "", "num": '10'}
+            data = {"amount": amount, "province": "", "num": '1'}
             self.printLog(str(data))
             self.beginGetPhoneBt.update()
             self.ISRUNING = True
