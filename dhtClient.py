@@ -31,6 +31,7 @@ class loginPanle():
         self.autoRefreshSpace = tk.StringVar()
         self.orderState = tk.StringVar()
         self.threadNumbers = tk.IntVar()
+        self.selectedArea = tk.StringVar()
         #是否在抢单中
         self._orderState = '全部'
         self.ISRUNING = False
@@ -277,7 +278,7 @@ class loginPanle():
         #下拉列表值
         self.comboVar = tk.StringVar()
         getPhoneNumberCombobox = ttk.Combobox(getPhoneSettingPanel,width = 2 , textvariable = self.comboVar ,values = [ i for i in range(1,11)])
-        #getPhoneNumberCombobox.setvar('1')
+        getPhoneNumberCombobox.current(0)
         getPhoneNumberCombobox.pack(side = tk.LEFT , padx = 5)
         #开始和结束抢单按钮
         #订单状态
@@ -413,6 +414,13 @@ class loginPanle():
         threadNumbersEntry = tk.Entry(settingPanelTab,textvariable = self.threadNumbers ,width = 5)
         threadNumbersEntry.grid(row = 0 , column = 5)
 
+        #配置抢单地区
+        selectAreaLabel = tk.Label(settingPanelTab,text = '选择的地区')
+        selectAreaLabel.grid(row = 0 , column = 6)
+        selectAreaCombobox = ttk.Combobox(settingPanelTab , textvariable = self.selectedArea,width = 8 ,state = 'readonly' )
+        selectAreaCombobox['value'] = self.getArea()
+        selectAreaCombobox.grid(row = 0 , column = 7)
+
 
  # **************************************************************************#
  #                          业务函数部分                                       #
@@ -488,7 +496,21 @@ class loginPanle():
             return {'Amount10': 1, 'Amount20': 0, 'Amount30': 0, 'Amount50': 0, 'Amount100': 0,
         'Amount200': 0, 'Amount300': 0, 'Amount500': 0}
             #tkinter.messagebox.showerror('注意','网络错误，请检查网络后重登')
-
+    '''
+    功能：获取地区
+    返回：地区
+    
+    '''
+    def getArea(self):
+        url = 'http://duihuantu.com/Api/Charge/GetChargeArea'
+        data = self.getInfo(url)
+        if data:
+            res = [i.get('Province') for i in data]
+            res.insert(0,'')
+            return res
+        else:
+            return ['']
+        
     '''
                功能：获取已经抢到的订单数
                返回：订单信息
@@ -536,7 +558,7 @@ class loginPanle():
             num = int(num)
             bt['state'] = tk.DISABLED
             bt['text'] = '抢单ing....'
-            data = {"amount": amount, "province": "", "num": '1'}
+            data = {"amount": amount, "province": self.selectedAreaget(), "num": '1'}
             self.printLog(str(data))
             bt.update()
             self.ISRUNING = True
@@ -835,18 +857,45 @@ class loginPanle():
 
     def refreshTable(self , event = None ):
         orders = self.getPhoneInfo()
+
         if not orders:
             return
-        elif orders == self.ordersInfo and self.orderState.get() == self._orderState :
+        
+        elif orders == self.ordersInfo and self.orderState.get() == self._orderState and 10 not in [i.get('State') for i in orders] :
             self.printLog('刷新订单信息成功(订单无变动)....')
             return
-        else:
-            self.ordersInfo = self.getPhoneInfo()
-            self._orderState = self.orderState.get()
+        elif orders == self.ordersInfo and self.orderState.get() == self._orderState:
+            #找出快超时的订单，未超时时，不用刷新界面
+            notNeedRush = True
+            for order in orders:
+                State = order.get('State')
+                Id = order.get("Id")
+                phoneNumber = order.get('Account')
+                if State == 10:
+                    t = int((float(time.time()) - float(self.changeTime(order.get("SupCreateTime") ,True)))/60)
+                    if t >20:
+                        url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                        data = {"orderId": Id}
+                        self.printLog('充值手机号：%s超过20min未手动确认，现自动确认充值完成!!\n,发送消息：%s' % (phoneNumber,data))
+                        result = self.postInfo(url, data)
+                        msg = result.get("Message")
+                        if msg != '操作成功':
+                            tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % msg)
+                        self.printLog('返回消息-【充值完成】：%s' % msg)
+                        notNeedRush = False
+                    self.printLog('手机：%s剩余时间：%s分钟'%(phoneNumber,20-t))
+                    
+            if  notNeedRush:
+                self.printLog('刷新订单信息成功(订单无变动)....')
+                return
+                
+        #刷新订单,重新获取，因为有可能前面自动完成订单，刷新了订单状态 
+        self.ordersInfo = self.getPhoneInfo()
+        self._orderState = self.orderState.get()
         if len(orders) != 0:
             self.deleteTable(self.orderTable)
             sequence = 0
-            for order in orders:
+            for order in self.ordersInfo :
                 # 排序
                 sequence += 1
                 # 手机号
@@ -866,13 +915,6 @@ class loginPanle():
                 createTime = self.changeTime(order.get("SupCreateTime"))
                 # 结算时间
                 completeTime = self.changeTime(order.get("CompleteTime"))
-                # 剩余时间
-                if State == 5: 
-                    remaindTime = self.remaindTime(self.changeTime(order.get("SupCreateTime") ,True))
-                else:
-                    remaindTime = 0
-                    
-                #print(remaindTime)
                 if not completeTime:
                     completeTime = '暂无'
                 # FilePath是否上传了文件
@@ -881,7 +923,6 @@ class loginPanle():
                     isUploadFile = '已上传'
                 else:
                     isUploadFile = '未上传'
-
                 if State == 4:
                     State = '充值成功'
                 elif State == 5:
@@ -1000,19 +1041,22 @@ class loginPanle():
                 self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
                 self.threadNumbers.set(self.ini['threadNumbers'])
                 self.openSound.set(self.ini['openSound'])
+                self.selectedArea.set(self.ini['selectedArea'])
         else:
              self.ini = {
                 'user':'',
                 'pwd':'',
                 'autoRefreshSpace':10,
                 'openSound':0,
-                'threadNumbers':2
+                'threadNumbers':2,
+                'selectedArea':''
              }
              self.username.set(self.ini['user'])
              self.pwd.set(self.ini['pwd'])
              self.autoRefreshSpace.set(self.ini['autoRefreshSpace'])
              self.openSound.set(self.ini['openSound'])
              self.threadNumbers.set(self.ini['threadNumbers'])
+             self.selectedArea.set(self.ini['selectedArea'])
 
     '''
     post请求数据，可不带cookies
@@ -1062,13 +1106,7 @@ class loginPanle():
     '''
     def getNowTime(self):
         return str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-
-    def remaindTime(self , rowTime):
-        t = int((float(time.time()) - float(rowTime))/60)
-        if t >20:
-            return 0
-        return 20 - t
-        
+  
     '''
                   功能： tree上色
                   返回：无
@@ -1142,6 +1180,7 @@ class loginPanle():
             self.ini['autoRefreshSpace'] = self.autoRefreshSpace.get()
             self.ini['openSound'] = self.openSound.get()
             self.ini['threadNumbers'] = self.threadNumbers.get()
+            self.ini['selectedArea'] = self.selectedArea.get()
             self.saveIni()
             #self.printLog('系统退出')
             self.root.destroy()
@@ -1214,7 +1253,7 @@ class loginPanle():
             needPhones = int(needPhones)
             self.beginGetPhoneBt['state'] = tk.DISABLED
             self.beginGetPhoneBt['text'] = '抢单ing....'
-            data = {"amount": amount, "province": "", "num": '1'}
+            data = {"amount": amount, "province": self.selectedArea.get(), "num": '1'}
             self.printLog(str(data))
             self.beginGetPhoneBt.update()
             self.ISRUNING = True
