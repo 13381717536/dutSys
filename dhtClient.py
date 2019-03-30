@@ -12,6 +12,7 @@ import re
 import os
 import threading
 import winsound
+import itchat
 from multiprocessing import Process ,Queue
 
 class loginPanle():
@@ -39,6 +40,7 @@ class loginPanle():
         self.totalPhones = 0
         self.textIndex = 0
         self.getTimes = 0
+        self.toUserName = ''
         self.header = {
             'Accept': 'application/json, text/plain, */*',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
@@ -400,19 +402,17 @@ class loginPanle():
         
         #功能设置界面
         
-        soundLabel = tk.Label(settingPanelTab,text = '是否开启提示音')
-        soundLabel.grid(row = 0 , column = 0)
-        soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound)
-        soundCheckBt.grid(row = 0 , column = 1)
+        soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound,text = '是否开启提示音')
+        soundCheckBt.grid(row = 0 , column = 0)
         autoRefreshSpaceLabel = tk.Label(settingPanelTab , text = '自动刷新的间隔(S)')
-        autoRefreshSpaceLabel.grid(row = 0 ,column = 2)
+        autoRefreshSpaceLabel.grid(row = 0 ,column = 1)
         autoRefreshSpaceEntry = tk.Entry(settingPanelTab,textvariable = self.autoRefreshSpace ,width = 5)
-        autoRefreshSpaceEntry.grid(row = 0 , column = 3)
+        autoRefreshSpaceEntry.grid(row = 0 , column = 2)
 
         threadNumbersLabel = tk.Label(settingPanelTab , text = '线程数')
-        threadNumbersLabel.grid(row = 0 ,column = 4)
+        threadNumbersLabel.grid(row = 0 ,column = 3)
         threadNumbersEntry = tk.Entry(settingPanelTab,textvariable = self.threadNumbers ,width = 5)
-        threadNumbersEntry.grid(row = 0 , column = 5)
+        threadNumbersEntry.grid(row = 0 , column = 4)
 
         #配置抢单地区
         selectAreaLabel = tk.Label(settingPanelTab,text = '选择的地区')
@@ -420,6 +420,13 @@ class loginPanle():
         selectAreaCombobox = ttk.Combobox(settingPanelTab , textvariable = self.selectedArea,width = 8 ,state = 'readonly' )
         selectAreaCombobox['value'] = self.getArea()
         selectAreaCombobox.grid(row = 0 , column = 7)
+
+        #配置是否开启微信提醒功能
+        isOpenWechatCheckbox = tk.Checkbutton(settingPanelTab , text = '是否开启微信提醒',command = lambda :self.myThreading(self.loginWechat,name = '微信提醒线程'))
+        isOpenWechatCheckbox.grid(row = 1 , column = 0 ,padx =2)
+        isOpenWechatCheckbox
+        
+        
 
 
  # **************************************************************************#
@@ -873,7 +880,7 @@ class loginPanle():
                 phoneNumber = order.get('Account')
                 if State == 10:
                     t = int((float(time.time()) - float(self.changeTime(order.get("SupCreateTime") ,True)))/60)
-                    if t >20:
+                    if t >15:
                         url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
                         data = {"orderId": Id}
                         self.printLog('充值手机号：%s超过20min未手动确认，现自动确认充值完成!!\n,发送消息：%s' % (phoneNumber,data))
@@ -929,9 +936,12 @@ class loginPanle():
                     State = '充值失败'
                 elif State == 10:
                     State = '供货商充值中'
+                    if self.toUserName:
+                        itchat.send_msg(msg = '抢单手机号：%s面值%s'%(phoneNumber,ProductName) , toUserName = self.toUserName)
                 elif State == 11:
                     State = '供货商充值完成'
                 #筛选展示的订单
+                
                 if self.orderState.get() ==State or self.orderState.get()== '全部':
                     self.orderTable.insert('', sequence - 1, values=(
                         sequence, phoneNumber, ProductName, CostPrice, PreBalance + "/" + PostBlance, State, createTime,
@@ -1195,7 +1205,29 @@ class loginPanle():
                 winsound.PlaySound('notice.wav', winsound.SND_ASYNC)
         except:
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
-
+    def loginWechat(self):
+        
+        #重写自动回复函数
+        def getUserName(nickName):
+            
+            #friends = itchat.get_friends()
+            for i in self.friends:
+                if nickName == i.get('NickName'):
+                    return i.get('UserName')
+        #@itchat.msg_register
+        @itchat.msg_register('Text')
+        def textReply(msg):
+            #print(msg,'\n\n\n\n')
+            if msg['FromUserName'] != self.friends[0]['UserName'] and self.toUserName == msg['FromUserName']:
+                #print('收到消息：%s'%msg['Text'])
+                return u'[自动回复]您好，我现在有事不在，一会再和您联系。\n已经收到您的的信息：%s\n' % (msg['Text'])
+        itchat.auto_login(hotReload = True)
+        self.friends = itchat.get_friends(update = True)
+        self.toUserName = getUserName('咚咚咚')
+        itchat.run()
+        
+        
+        
     
     '''
     功能：提供多线程进行抢单
