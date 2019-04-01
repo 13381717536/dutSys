@@ -1145,7 +1145,7 @@ class loginPanle():
     def printLog(self , log , isShow = True):
         #self.logTextFelid['state'] = tk.NORMAL
         myLog = '【' + str(self.textIndex) + '】' + self.getNowTime() + '--INFO--' + log + "\n"
-        with open('dhtLogs.log','a+' ,encoding = 'utf-8') as f:
+        with open('dhtLogs.log','a+') as f:
             f.write(myLog)
         if isShow:
             self.logTextFelid.insert(tk.END , myLog)
