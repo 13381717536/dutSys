@@ -469,7 +469,7 @@ class loginPanle():
             if result.get('Message') != '登录成功':
                 tkinter.messagebox.showwarning('警告', '用户名或者密码错误！')
             else:
-                if int(datetime.datetime.now().month)>=4:
+                if int(datetime.datetime.now().month)>=10:
                     return
                 self.loginFrame.destroy()
                 self.mainPage(result)
