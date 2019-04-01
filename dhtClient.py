@@ -10,6 +10,7 @@ import time
 import datetime
 import re
 import os
+import qrcode
 import threading
 import winsound
 import itchat
@@ -29,6 +30,7 @@ class loginPanle():
         self.iniPath = 'GLusers.pkl'
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
+        self.isOpenWechat = tk.IntVar()
         self.autoRefreshSpace = tk.StringVar()
         self.orderState = tk.StringVar()
         self.threadNumbers = tk.IntVar()
@@ -130,7 +132,9 @@ class loginPanle():
                         data[name] = bankNameVar.get()
                            
                 else:
+                   # print(weight.previouInfo)
                     if weight.stringVar.get() == weight.previouInfo:
+
                         tkinter.messagebox.showinfo('提醒',weight.previouInfo)
                         isok = False
                         break
@@ -209,10 +213,13 @@ class loginPanle():
         getIdBt = tk.Button(smsCode , text = '获取验证码' ,command = getId,bg = '#8DB6CD' ,fg ='white')
         getIdBt.pack(side = tk.RIGHT)
         smsCode.pack_propagate(False)
-        weights = [account , password ,qq ,bankName,idCard ,realName ,bankCardId,imageCode,smsCode]
-        weights_str = ['account' , 'password' ,'qq' ,'bankName','idCard' ,'realName' ,'bankCardId','imageCode','smsCode']
+        #imageCode
+        weights = [account , password ,qq ,bankName,idCard ,realName ,bankCardId,smsCode]
+        weights_str = ['account' , 'password' ,'qq' ,'bankName','idCard' ,'realName' ,'bankCardId','smsCode']
+
         for entry in weights:
             entry.pack(pady = 5)
+        imageCode.pack(pady=5)
         
         #注册账户bt
         registBt = tk.Button(registPanel , text = '注册',width = entry_width ,bg = '#8DB6CD',fg ='white' )
@@ -422,9 +429,9 @@ class loginPanle():
         selectAreaCombobox.grid(row = 0 , column = 7)
 
         #配置是否开启微信提醒功能
-        isOpenWechatCheckbox = tk.Checkbutton(settingPanelTab , text = '是否开启微信提醒',command = lambda :self.myThreading(self.loginWechat,name = '微信提醒线程'))
+        isOpenWechatCheckbox = tk.Checkbutton(settingPanelTab , variable = self.isOpenWechat,text = '是否开启微信提醒',command = lambda :self.myThreading(self.loginWechat,name = '微信提醒线程'))
         isOpenWechatCheckbox.grid(row = 1 , column = 0 ,padx =2)
-        isOpenWechatCheckbox
+
         
         
 
@@ -1187,6 +1194,9 @@ class loginPanle():
     '''
     def closeSys(self):
         if tkinter.messagebox.askyesno('系统确认退出','确定要退出系统吗？'):
+            if self.isOpenWechat.get() == 1:
+                self.printLog('微信退出...')
+                itchat.logout()
             self.ini['autoRefreshSpace'] = self.autoRefreshSpace.get()
             self.ini['openSound'] = self.openSound.get()
             self.ini['threadNumbers'] = self.threadNumbers.get()
@@ -1206,25 +1216,126 @@ class loginPanle():
         except:
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
     def loginWechat(self):
-        
+        def mySend(content):
+            itchat.send_msg(msg=content, toUserName=self.toUserName)
         #重写自动回复函数
         def getUserName(nickName):
-            
-            #friends = itchat.get_friends()
             for i in self.friends:
                 if nickName == i.get('NickName'):
                     return i.get('UserName')
         #@itchat.msg_register
         @itchat.msg_register('Text')
         def textReply(msg):
-            #print(msg,'\n\n\n\n')
+            print(msg)
+            content = msg['Text']
+            def dealMsg(content:str):
+
+                if content == 'ok':
+                    for i in self.ordersInfo:
+                        if i.get('State') == 10:
+                            url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                            orderId = i.get('Id')
+                            data = {"orderId": orderId}
+                            self.printLog('发送消息：%s' % data)
+                            result = self.postInfo(url, data)
+                            message = result.get("Message")
+                            if message != '操作成功':
+                                tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % message)
+                                mySend( '操作失败，错误原因：%s' % message)
+                            self.printLog('返回消息-【充值完成】：%s' % message)
+                            mySend( '返回消息-【充值完成】：%s' % message)
+                            self.refreshTable()
+                        else:
+                            mySend('暂无需要处理的订单')
+
+                elif '+' in content:
+                    phone , isOk = content.split('+')
+                    phones = {}
+                    for i in self.ordersInfo:
+                        if i.get('State') == 10:
+                            phones[i.get('Account')] = i.get('Id')
+                    if phone in phones.keys() and isOk == 'ok':
+                        url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                        orderId = phones.get(phone)
+                        data = {"orderId": orderId}
+                        self.printLog('发送消息：%s' % data)
+                        result = self.postInfo(url, data)
+                        message = result.get("Message")
+                        if message != '操作成功':
+                            tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % message)
+                            mySend( '操作失败，错误原因：%s' % message)
+                        self.printLog('返回消息-【充值完成】：%s' % message)
+                        mySend( '返回消息-【充值完成】：%s' % message)
+                        self.refreshTable()
+                    elif phone in phones.keys() and isOk == 'no':
+                        url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
+                        orderId = phones.get(phone)
+                        data = {"orderId": orderId, "state": 5}
+                        result = self.postInfo(url, data)
+                        self.printLog('发送消息：%s' % data)
+                        self.printLog('返回消息-失败订单：%s' % result.get("Message"))
+                        mySend(  '返回消息-失败订单：%s' % result.get("Message"))
+                    else:
+                        mySend(  '输入信息有误，请按提示输入！')
+
+                else:
+                    mySend(  '输入信息有误，请按提示输入！')
+
+            print(msg['FromUserName'],self.friends[0]['UserName'],self.toUserName)
             if msg['FromUserName'] != self.friends[0]['UserName'] and self.toUserName == msg['FromUserName']:
+                autoReply = '回复ok，全部充值成功\n回复手机号+ok某个订单成功\n回复手机号+no某个订单失败'
+
+                mySend(autoReply)
+                dealMsg(content)
                 #print('收到消息：%s'%msg['Text'])
-                return u'[自动回复]您好，我现在有事不在，一会再和您联系。\n已经收到您的的信息：%s\n' % (msg['Text'])
-        itchat.auto_login(hotReload = True)
-        self.friends = itchat.get_friends(update = True)
-        self.toUserName = getUserName('咚咚咚')
-        itchat.run()
+                #return u'[自动回复]您好，我现在有事不在，一会再和您联系。\n已经收到您的的信息：%s\n' % (msg['Text'])
+
+        if self.isOpenWechat.get() == 1:
+            imgPath = 'wechat.gif'
+            #itchat.auto_login(hotReload = True)
+            uuid = itchat.get_QRuuid()
+            img = qrcode.make("https://login.weixin.qq.com/l/%s"%uuid)
+            img.save(imgPath)
+            weChatPanel = tk.Toplevel()
+            weChatPanel.title('微信登陆')
+            weChatPanel.geometry('400x400+1000+500')
+            img = tk.PhotoImage(file=imgPath)
+            myImg = tk.Label(weChatPanel, image=img)
+            myImg.pack()
+            myImg.image = img
+            self.printLog('请扫码登录微信····')
+            while True:
+                code = int(itchat.check_login(uuid))
+                if code == 200:
+                    self.printLog('微信登录成功....')
+                    weChatPanel.destroy()
+                    break
+                elif code == 201:
+                    self.printLog('等待扫码确认....')
+                elif code == 408:
+                    self.printLog('微信登录超时....')
+                elif code == 400:
+                    self.printLog('取消微信登录....')
+                    weChatPanel.destroy()
+                    break
+                else:
+                    self.printLog('未知错误！,请重新登录')
+                    weChatPanel.destroy()
+                    return
+                time.sleep(1)
+            itchat.web_init()
+            self.printLog('微信初始化成功....')
+            itchat.show_mobile_login()
+            self.printLog('微信手机状态成功....')
+            itchat.start_receiving()
+            self.printLog('微信心跳开启成功....')
+            self.friends = itchat.get_friends(update = True)
+            self.toUserName = getUserName('咚咚咚')
+            itchat.run()
+        else:
+            itchat.logout()
+            self.printLog('微信退出成功....')
+
         
         
         
@@ -1333,7 +1444,8 @@ class myEntry(tk.Entry):
             self.config(fg = '#dbdbdb' )
             self.stringVar.set(self.previouInfo)
             self.count = 0
-            
+
+
     
 
 
