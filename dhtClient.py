@@ -35,10 +35,12 @@ class loginPanle():
         self.orderState = tk.StringVar()
         self.threadNumbers = tk.IntVar()
         self.selectedArea = tk.StringVar()
+        self.selectedCarrier = tk.StringVar()
         #是否在抢单中
         self._orderState = '全部'
         self.ISRUNING = False
         self.sendedOrders = []
+
         self.ordersInfo = []
         self.totalPhones = 0
         self.textIndex = 0
@@ -404,10 +406,7 @@ class loginPanle():
         totalFrame.pack(fill = tk.X)
         self.totalLabel = tk.Label(totalFrame)
         self.totalLabel.pack(side = tk.LEFT)
-        
-        
-        
-        
+
         #功能设置界面
         
         soundCheckBt = tk.Checkbutton(settingPanelTab , variable = self.openSound,text = '是否开启提示音')
@@ -432,6 +431,13 @@ class loginPanle():
         #配置是否开启微信提醒功能
         isOpenWechatCheckbox = tk.Checkbutton(settingPanelTab , variable = self.isOpenWechat,text = '是否开启微信提醒',command = lambda :self.myThreading(self.loginWechat,name = '微信提醒线程'))
         isOpenWechatCheckbox.grid(row = 1 , column = 0 ,padx =2)
+        #配置运营商
+        carrierLabel = tk.Label(settingPanelTab, text='运营商')
+        carrierLabel.grid(row=1, column=1)
+        carrierCombobox = ttk.Combobox(settingPanelTab, textvariable=self.selectedCarrier, width=8, state='readonly')
+        carrierCombobox['value'] = ['全部','移动','联通','电信']
+        carrierCombobox.grid(row=1, column=2)
+
 
         
         
@@ -1207,6 +1213,8 @@ class loginPanle():
             self.saveIni()
             #self.printLog('系统退出')
             self.root.destroy()
+            import sys
+            sys.exit()
 
     '''
                   功能： 播放声音
@@ -1356,7 +1364,7 @@ class loginPanle():
     '''
     功能：提供多线程进行抢单
     '''
-    def getPhoneThreads(self , province = None,amount = None , needPhones = None ):
+    def getPhoneThreads(self , province = None,amount = None , needPhones = None ,ispType = None):
         def getPhones(threadName = ''):
             nowOrder = getedPhones.get()
             nowOrderBak = 0
@@ -1410,9 +1418,20 @@ class loginPanle():
         elif self.isOpenWechat.get() != 1 and not amount and not needPhones:
             tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
             return
+        #运营商选择
+        if ispType:
+            pass
+        elif self.selectedCarrier.get() =='全部':
+            ispType = ''
+        elif self.selectedCarrier.get() == '移动':
+            ispType = '0'
+        elif self.selectedCarrier.get() == '联通':
+            ispType = '1'
+        elif self.selectedCarrier.get() == '电信':
+            ispType = '2'
         self.beginGetPhoneBt['state'] = tk.DISABLED
         self.beginGetPhoneBt['text'] = '抢单ing....'
-        data = {"amount": amount, "province": province, "num": needPhones}
+        data = {"amount": amount, "province": province, "num": needPhones ,"ispType" : ispType}
         self.printLog(str(data))
         self.beginGetPhoneBt.update()
         self.ISRUNING = True
