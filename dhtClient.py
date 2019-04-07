@@ -731,9 +731,29 @@ class loginPanle():
             self.root.clipboard_clear()
             self.root.clipboard_append(res)
             self.printLog('复制成功!\n'+res)
+        def getPLogs():
+            selected = self.orderTable.selection()
+            for item in selected:
+                it = self.orderTable.item(item, 'values')
+                orderId = it[self.orderTable["columns"].index('id')]
+                url = 'http://duihuantu.com/Api/Charge/GetOrderLog'
+                data = {"orderId": orderId}
+                self.printLog('发送获取日志消息：%s' % data)
+                result = self.postInfo(url, data)
+                data = result.get('Data')
+                showLogs = ''
+
+                if data:
+                    for i in data:
+                        showLogs += i+'\n'
+                    print(showLogs)
+                    tkinter.messagebox.showinfo('日志',showLogs)
+
+
+
+
         def successConfirm():
             selected = self.orderTable.selection()
-
             for item in selected:
                 it = self.orderTable.item(item, 'values')
                 orderId = it[self.orderTable["columns"].index('id')]
@@ -857,6 +877,7 @@ class loginPanle():
             menu.add_command(label='查询号码余额', command=queryAccountBalance)
             menu.add_command(label='上传凭证', command=uploadPicture)
             menu.add_command(label='确认充值失败', command=failConfirm)
+            menu.add_command(label = '日志', command = getPLogs)
             # menu.add_command(label = '导出EXCEL文件', command = exportExcel)
             menu.post(event.x_root, event.y_root)
 
