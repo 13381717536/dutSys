@@ -436,6 +436,7 @@ class loginPanle():
         carrierLabel.grid(row=1, column=1)
         carrierCombobox = ttk.Combobox(settingPanelTab, textvariable=self.selectedCarrier, width=8, state='readonly')
         carrierCombobox['value'] = ['全部','移动','联通','电信']
+        carrierCombobox.current(0)
         carrierCombobox.grid(row=1, column=2)
 
 
@@ -748,6 +749,8 @@ class loginPanle():
                         showLogs += i+'\n'
                     print(showLogs)
                     tkinter.messagebox.showinfo('日志',showLogs)
+                else:
+                    tkinter.messagebox.showinfo('日志','暂无日志')
 
 
 
