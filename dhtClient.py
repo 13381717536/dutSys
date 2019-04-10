@@ -24,9 +24,10 @@ class loginPanle():
         self.winWidth = self.root.winfo_screenwidth()
         self.winHeght = self.root.winfo_screenheight()
         self.username = tk.StringVar()
+        self.pwd = tk.StringVar()
         #self.username.set('18482322413')
         #self.pwd.set('z123456')
-        self.pwd = tk.StringVar()
+        
         self.iniPath = 'GLusers.pkl'
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
@@ -271,12 +272,16 @@ class loginPanle():
         #第一第二部分
         for i , name in enumerate(['面值','数量','价格']):
             tk.Label(orderInfoPanel , text = name).grid(row =i ,column = 0 ,sticky = tk.W)
+        #print(orderInfo.items())
         for i ,face in enumerate(orderInfo.items()):
-            phoneFaceRadio = tk.Radiobutton(orderInfoPanel , text = face[0].replace('Amount',''),variable = self.sizeVar , value = int(face[0].replace('Amount','')))
-            leatestMountLabel = tk.Label(orderInfoPanel , text = ' ' + str(face[1])+'  单')
-            phoneFaceRadio.grid(row = 0, column = i+1 ,sticky = tk.W )
-            leatestMountLabel.grid(row = 1, column = i+1 ,sticky = tk.W )
-            self.leatestMountLabels.append(leatestMountLabel)
+            try:
+                phoneFaceRadio = tk.Radiobutton(orderInfoPanel , text = face[0].replace('Amount',''),variable = self.sizeVar , value = int(face[0].replace('Amount','')))
+                leatestMountLabel = tk.Label(orderInfoPanel , text = ' ' + str(face[1])+'  单')
+                phoneFaceRadio.grid(row = 0, column = i+1 ,sticky = tk.W )
+                leatestMountLabel.grid(row = 1, column = i+1 ,sticky = tk.W )
+                self.leatestMountLabels.append(leatestMountLabel)
+            except:
+                break
             try:
                 supplyPrice = tk.Label(orderInfoPanel , text = '￥'+ str(countPrices[i]))
             except:
@@ -977,7 +982,7 @@ class loginPanle():
                     State = '供货商充值中'
                     if self.toUserName and phoneNumber not in self.sendedOrders:
                         self.sendedOrders.append(phoneNumber)
-                        itchat.send_msg(msg = '抢单手机号：%s面值%s'%(phoneNumber,ProductName) , toUserName = self.toUserName)
+                        itchat.send_msg(msg = '%s抢单手机号：%s面值%s'%(self.getNowTime(),phoneNumber,ProductName) , toUserName = self.toUserName)
                 elif State == 11:
                     State = '供货商充值完成'
                 #筛选展示的订单
@@ -1260,6 +1265,7 @@ class loginPanle():
                     return i.get('UserName')
 
         def dealMsg(content:str):
+            dealTime = self.getNowTime()
             if content == 'ok' or content == 'OK':
                 needNotice = True
                 for i in self.ordersInfo:
@@ -1275,11 +1281,13 @@ class loginPanle():
                             tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % message)
                             mySend( '操作失败，错误原因：%s' % message)
                         self.printLog('返回消息-【充值完成】：%s' % message)
-                        mySend( '返回消息-%s【充值完成】：%s' %(i.get('Account'),message))
-                        self.refreshTable()
+                        mySend( '%s返回消息-%s【充值完成】：%s' %(dealTime,i.get('Account'),message))
                         needNotice = False
+                
                 if needNotice:
                     mySend('暂无需要处理的订单')
+                else:
+                    self.refreshTable()
 
             elif '+' in content and content.startswith('1'):
                 phone , isOk = content.split('+')
@@ -1296,9 +1304,9 @@ class loginPanle():
                     message = result.get("Message")
                     if message != '操作成功':
                         tkinter.messagebox.showerror('*******警告*******', '操作失败，错误原因：%s' % message)
-                        mySend( '操作失败，错误原因：%s' % message)
+                        mySend( '%s操作失败，错误原因：%s' %(dealTime, message))
                     self.printLog('返回消息-【充值完成】：%s' % message)
-                    mySend( '返回消息-%s【充值完成】：%s' %(phone,message))
+                    mySend( '%s返回消息-%s【充值完成】：%s' %(dealTime,phone,message))
                     self.refreshTable()
                 elif phone in phones.keys() and (isOk == 'no' or isOk == 'NO'):
                     url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
@@ -1307,13 +1315,17 @@ class loginPanle():
                     result = self.postInfo(url, data)
                     self.printLog('发送消息：%s' % data)
                     self.printLog('返回消息-失败订单：%s' % result.get("Message"))
-                    mySend(  '返回消息-失败订单：%s' % result.get("Message"))
+                    mySend(  '%s返回消息-失败订单：%s' %(dealTime,result.get("Message")))
                 else:
                     mySend(  '输入信息有误，请按提示输入！')
             elif content.startswith('开始抢单+') and len(content.split('+')) == 4:
                 province , amount , num  = content.split('+')[1:]
                 self.getPhoneThreads(province,amount,num)
                 mySend('正在抢单....%s省，%s面值，%s单'%(province,amount,num))
+            elif content.startswith('开始抢单+') and len(content.split('+')) == 5:
+                province , amount , num ,ispType  = content.split('+')[1:]
+                self.getPhoneThreads(province,amount,num,ispType)
+                mySend('正在抢单....%s省，%s面值，%s单,%s运营商'%(province,amount,num,ispType))
             elif '停止抢单' == content:
                 if self.ISRUNING :
                     mySend('停止抢单成功...')
@@ -1334,7 +1346,7 @@ class loginPanle():
             #print(msg['FromUserName'],self.friends[0]['UserName'],self.toUserName)#偶发没收到消息的情况
             content = msg['Text']
             if msg['FromUserName'] != self.friends[0]['UserName'] and self.toUserName == msg['FromUserName']:
-                autoReply = '回复ok，全部充值成功\n回复手机号+ok某个订单成功\n回复手机号+no某个订单失败\n回复开始抢单+(省份可缺)+面值+单数\n回复停止抢单'
+                autoReply = '回复ok，全部充值成功\n回复手机号+ok某个订单成功\n回复手机号+no某个订单失败\n回复开始抢单+(省份可缺)+面值+单数+(0移动1联通2电信)\n回复停止抢单'
                 mySend(autoReply)
                 dealMsg(content)
 
@@ -1436,10 +1448,10 @@ class loginPanle():
         #预处理
         url = 'http://duihuantu.com/Api/Charge/GetOrder'
         #先把不符合的给剔除
-        if self.isOpenWechat.get() == 1 and not amount and  not needPhones :
+        if self.isOpenWechat.get() == 1 and (not amount or  not needPhones) :
             itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username)
             return
-        elif self.isOpenWechat.get() != 1 and not amount and not needPhones:
+        elif self.isOpenWechat.get() != 1 and (not amount or not needPhones):
             tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
             return
         #运营商选择
