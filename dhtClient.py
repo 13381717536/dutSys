@@ -1254,7 +1254,18 @@ class loginPanle():
             if self.openSound.get() == 1:
                 winsound.PlaySound('notice.wav', winsound.SND_ASYNC)
         except:
+            
             tkinter.messagebox.showerror('警告','notice.wav文件不存在！')
+
+    '''
+                  功能： 获取中间位置
+                  返回：[x,y]
+    '''
+    def getCenterPosition(self , adjust_x , adjust_y):
+        width = self.root.winfo_screenwidth()
+        height = self.root.winfo_screenheight()
+        return (int((width-adjust_x)/2) , int((height-adjust_y)/2))
+        
     def loginWechat(self):
         def mySend(content):
             itchat.send_msg(msg=content, toUserName=self.toUserName)
@@ -1358,10 +1369,11 @@ class loginPanle():
             img.save(imgPath)
             weChatPanel = tk.Toplevel()
             weChatPanel.title('微信登陆')
-            weChatPanel.geometry('400x400+1000+500')
+            weChatPanel.geometry('400x400+%s+%s'%(self.getCenterPosition(400,400)))
             img = tk.PhotoImage(file=imgPath)
             myImg = tk.Label(weChatPanel, image=img)
             myImg.pack()
+            #可能是tk的bug，需重新给属性命名
             myImg.image = img
             self.printLog('请扫码登录微信····')
             while True:
