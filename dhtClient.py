@@ -29,6 +29,7 @@ class loginPanle():
         #self.pwd.set('z123456')
         
         self.iniPath = 'GLusers.pkl'
+        self.host = 'http://m.duihuantu.com/'
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
         self.isOpenWechat = tk.IntVar()
@@ -51,7 +52,7 @@ class loginPanle():
             'Accept': 'application/json, text/plain, */*',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
             'Accept-Encoding': 'gzip, deflate',
-            'Referer': 'http://duihuantu.com/',
+            'Referer': self.host+'',
             'Accept-Language': 'zh-CN,zh;q=0.9',
             'Content-Type': 'application/json',#这个对于post 的解析不同，可深入研究
             'Host': 'duihuantu.com',
@@ -122,7 +123,7 @@ class loginPanle():
                 tkinter.messagebox.showinfo('提示：',result)
         def regist():
             #smsCode.stringVar.get(),"smsCode":infoList[7],
-            isok = True
+            
             data = {}
             data['refererId'] = ''
             myWeight = list(zip(weights_str,weights))
@@ -130,8 +131,7 @@ class loginPanle():
                 if weight == bankName:
                     if bankNameVar.get() == '请选择提现银行':
                         tkinter.messagebox.showinfo('提醒','请选择提现银行')
-                        isok = False
-                        break
+                        return
                     else:
                         data[name] = bankNameVar.get()
                            
@@ -140,27 +140,25 @@ class loginPanle():
                     if weight.stringVar.get() == weight.previouInfo:
 
                         tkinter.messagebox.showinfo('提醒',weight.previouInfo)
-                        isok = False
-                        break
+                        return
                     elif name == 'account':
                         tem = weight.stringVar.get()
                         
                         if  re.match('\d{11}',tem) == None or len(tem) != 11:
                             tkinter.messagebox.showinfo('提醒','11位电话号码填写不正确')
-                            isok = False
-                            break
+                            return
                     
                     
                     data[name] = weight.stringVar.get()
-            if isok :
-                url = 'http://duihuantu.com/#/regist?extensioner=5585'
-                response = requests.post(url , data = json.dumps(data) , cookies = temCookies , headers = self.header)
-                result = response.json().get('Message')
-                tkinter.messagebox.showinfo('消息',result)
+        
+            url = self.host+'#/regist?extensioner=5585'
+            response = requests.post(url , data = json.dumps(data) , cookies = temCookies , headers = self.header)
+            result = response.json().get('Message')
+            tkinter.messagebox.showinfo('消息',result)
         def backLogin(event = None):
             registPanel.destroy()
             self.root.attributes('-disabled',0)
-        #内部函数#####
+        #内部函数结束#####
         bankName_list = ['请选择提现银行', '中国工商银行', '中国农业银行', '中国农业发展银行', '中国银行', '中国建设银行', '中国邮政储蓄银行', '交通银行', '招商银行', '浦发银行', '兴业银行', '中信银行', '光大银行', '华夏银行', '广发银行', '平安银行', '北京银行',
          '平安银行', '汇丰银行', '东亚银行', '上海浦东发展银行']
         width_ = 220
@@ -171,7 +169,7 @@ class loginPanle():
         #registPanel.transient(master = self.loginFrame )
         registPanel.geometry('%dx%d+%d+%d'%(width_,height_,(self.winWidth-width_)/2,(self.winHeght-height_)/2))
         logoFile = 'logo.png'
-        url = 'http://duihuantu.com/assets/images/logo2.png'
+        url = self.host+'assets/images/logo2.png'
         with open(logoFile , 'wb') as f:
             logo = requests.get(url).content
             f.write(logo)
@@ -195,7 +193,7 @@ class loginPanle():
         smsCode = myEntry(registPanel , '请输入短信验证码' ,width =entry_width)
         #####完成#####
         #获取验证图片和临时cokies
-        imgUrl = 'http://duihuantu.com/Api/Common/GetKaptcha?time=0.25296404468058964'
+        imgUrl = self.host+'Api/Common/GetKaptcha?time=0.25296404468058964'
         response_img = requests.get(imgUrl)
         codeImgFile = 'code.png'
         with open(codeImgFile , 'wb') as f:
@@ -459,7 +457,7 @@ class loginPanle():
 
     def checkCount(self, event=None):
         # 网络登录部分
-        loginUrl = 'http://duihuantu.com/Api/User/SignIn'
+        loginUrl = self.host+'Api/User/SignIn'
         header = self.header
         user = self.username.get()
         pwd = self.pwd.get()
@@ -500,7 +498,7 @@ class loginPanle():
         返回：价格数组；按照面额从小到大返回10-->20-->30-->50-->100-->200-->300-->500的对应的价格
         '''
     def getSupplyPrice(self):
-        url = 'http://duihuantu.com/Api/Charge/GetSupplyPrice'
+        url = self.host+'Api/Charge/GetSupplyPrice'
         data = self.getInfo(url)
         if data:
             data = data.values()
@@ -515,7 +513,7 @@ class loginPanle():
         {'Amount10': 1, 'Amount20': 0, 'Amount30': 0, 'Amount50': 0, 'Amount100': 0,
         'Amount200': 0, 'Amount300': 0, 'Amount500': 0} <class 'dict'>
         '''
-        url = 'http://duihuantu.com/Api/Charge/GetStandbyOrderNum'
+        url = self.host+'Api/Charge/GetStandbyOrderNum'
         res = self.getInfo(url)
         if res:
             return res
@@ -529,7 +527,7 @@ class loginPanle():
     
     '''
     def getArea(self):
-        url = 'http://duihuantu.com/Api/Charge/GetChargeArea'
+        url = self.host+'Api/Charge/GetChargeArea'
         data = self.getInfo(url)
         if data:
             res = [i.get('Province') for i in data]
@@ -551,7 +549,7 @@ class loginPanle():
         today = datetime.datetime.now()
         delta = datetime.timedelta(days=0)
         n_days = today - delta
-        url = 'http://duihuantu.com/Api/Charge/GetPage'
+        url = self.host+'Api/Charge/GetPage'
 
         data = {"pageIndex": 1, "pageSize": 1000, "state": "",
 
@@ -578,7 +576,7 @@ class loginPanle():
         postdata格式：{"amount":"500","province":"","num":"1"}
         '''
         self.refreshTable()
-        url = 'http://duihuantu.com/Api/Charge/GetOrder'
+        url = self.host+'Api/Charge/GetOrder'
         #先把不符合的给剔除
         if self.isOpenWechat.get() == 1 and not amount and  not num :
             itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username)
@@ -643,7 +641,7 @@ class loginPanle():
         'TotalTradeAmount': 234259.12},
         'Message': '余额查询成功', 'State': 0}
         '''
-        url = 'http://duihuantu.com/Api/Finance/GetBalance'
+        url = self.host+'Api/Finance/GetBalance'
         res = self.getInfo(url)
         if res:
             return res
@@ -658,7 +656,7 @@ class loginPanle():
     '''
 
     def balance2Count(self, amount):
-        'http://duihuantu.com/Api/Finance/TransferApply HTTP/1.1'
+        self.host+'Api/Finance/TransferApply HTTP/1.1'
         url = "http://duihuantu.com/Api/Finance/TransferApply"
         if not amount:
             balanceInfo = self.getBalance()
@@ -742,7 +740,7 @@ class loginPanle():
             for item in selected:
                 it = self.orderTable.item(item, 'values')
                 orderId = it[self.orderTable["columns"].index('id')]
-                url = 'http://duihuantu.com/Api/Charge/GetOrderLog'
+                url = self.host+'Api/Charge/GetOrderLog'
                 data = {"orderId": orderId}
                 self.printLog('发送获取日志消息：%s' % data)
                 result = self.postInfo(url, data)
@@ -765,7 +763,7 @@ class loginPanle():
             for item in selected:
                 it = self.orderTable.item(item, 'values')
                 orderId = it[self.orderTable["columns"].index('id')]
-                url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                url = self.host+'Api/Charge/OrderChargeNotify'
                 data = {"orderId": orderId}
                 self.printLog('发送消息：%s' % data)
                 result = self.postInfo(url, data)
@@ -791,7 +789,7 @@ class loginPanle():
                     State = 11
 
                 if tkinter.messagebox.askyesno('确认失败？', '确认失败此笔订单吗\n    %s'%it[self.orderTable['columns'].index('号码')]):
-                    url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
+                    url = self.host+'Api/Charge/CancelOrderNotify'
                     data = {"orderId": orderId, "state": State}
                     result = self.postInfo(url, data)
                     self.printLog('发送消息：%s' % data)
@@ -799,7 +797,7 @@ class loginPanle():
             self.refreshTable()
 
         def queryAccountBalance():
-            url = 'http://duihuantu.com/Api/Misc/QueryAccountBalance'
+            url = self.host+'Api/Misc/QueryAccountBalance'
             selected = self.orderTable.selection()
             for item in selected:
                 it = self.orderTable.item(item, 'values')
@@ -811,7 +809,7 @@ class loginPanle():
 
         def uploadPicture():
 
-            url = 'http://duihuantu.com/Api/Charge/UploadImage'
+            url = self.host+'Api/Charge/UploadImage'
             selected = self.orderTable.selection()
             for item in selected:
                 it = self.orderTable.item(item, 'values')
@@ -823,7 +821,7 @@ class loginPanle():
                              'Origin': 'http://duihuantu.com',
                              'orderId': orderId,
                              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
-                    , 'Accept': '*/*', 'Referer': 'http://duihuantu.com/',
+                    , 'Accept': '*/*', 'Referer': self.host+'',
                              'Accept-Encoding': 'gzip, deflate', 'Accept-Language': 'zh-CN,zh;q=0.9'}
 
                 picturePath = fd.askopenfilename()
@@ -925,7 +923,7 @@ class loginPanle():
                 if State == 10:
                     t = int((float(time.time()) - float(self.changeTime(order.get("SupCreateTime") ,True)))/60)
                     if t >15:
-                        url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                        url = self.host+'Api/Charge/OrderChargeNotify'
                         data = {"orderId": Id}
                         self.printLog('充值手机号：%s超过20min未手动确认，现自动确认充值完成!!\n,发送消息：%s' % (phoneNumber,data))
                         result = self.postInfo(url, data)
@@ -1190,7 +1188,7 @@ class loginPanle():
     def printLog(self , log , isShow = True):
         #self.logTextFelid['state'] = tk.NORMAL
         myLog = '【' + str(self.textIndex) + '】' + self.getNowTime() + '--INFO--' + log + "\n"
-        with open('dhtLogs.log','a+') as f:
+        with open('dhtLogs.log','a+',encoding = 'utf8') as f:
             f.write(myLog)
         if isShow:
             self.logTextFelid.insert(tk.END , myLog)
@@ -1282,7 +1280,7 @@ class loginPanle():
                 for i in self.ordersInfo:
                     #如果存在未处理订单，则操作，假设全部都没有需要提醒的则提示没有订单需要处理
                     if i.get('State') == 10:
-                        url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                        url = self.host+'Api/Charge/OrderChargeNotify'
                         orderId = i.get('Id')
                         data = {"orderId": orderId}
                         self.printLog('发送消息：%s' % data)
@@ -1307,7 +1305,7 @@ class loginPanle():
                     if i.get('State') == 10:
                         phones[i.get('Account')] = i.get('Id')
                 if phone in phones.keys() and (isOk == 'ok' or isOk == 'OK'):
-                    url = 'http://duihuantu.com/Api/Charge/OrderChargeNotify'
+                    url = self.host+'Api/Charge/OrderChargeNotify'
                     orderId = phones.get(phone)
                     data = {"orderId": orderId}
                     self.printLog('发送消息：%s' % data)
@@ -1320,7 +1318,7 @@ class loginPanle():
                     mySend( '%s返回消息-%s【充值完成】：%s' %(dealTime,phone,message))
                     self.refreshTable()
                 elif phone in phones.keys() and (isOk == 'no' or isOk == 'NO'):
-                    url = 'http://duihuantu.com/Api/Charge/CancelOrderNotify'
+                    url = self.host+'Api/Charge/CancelOrderNotify'
                     orderId = phones.get(phone)
                     data = {"orderId": orderId, "state": 10}
                     result = self.postInfo(url, data)
@@ -1458,7 +1456,7 @@ class loginPanle():
 
                 
         #预处理
-        url = 'http://duihuantu.com/Api/Charge/GetOrder'
+        url = self.host+'Api/Charge/GetOrder'
         #先把不符合的给剔除
         if self.isOpenWechat.get() == 1 and (not amount or  not needPhones) :
             itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username)
