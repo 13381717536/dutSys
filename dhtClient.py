@@ -29,15 +29,17 @@ class loginPanle():
         #self.pwd.set('z123456')
         
         self.iniPath = 'GLusers.pkl'
-        self.host = 'http://m.duihuantu.com/'
+        self.host = 'http://duihuantu.com/'
         self.saveCount = tk.IntVar()
         self.openSound = tk.IntVar()
         self.isOpenWechat = tk.IntVar()
+        self.nickName = tk.StringVar()
         self.autoRefreshSpace = tk.StringVar()
         self.orderState = tk.StringVar()
         self.threadNumbers = tk.IntVar()
         self.selectedArea = tk.StringVar()
         self.selectedCarrier = tk.StringVar()
+        self.friends = []
         #是否在抢单中
         self._orderState = '全部'
         self.ISRUNING = False
@@ -47,7 +49,6 @@ class loginPanle():
         self.totalPhones = 0
         self.textIndex = 0
         self.getTimes = 0
-        self.toUserName = ''
         self.header = {
             'Accept': 'application/json, text/plain, */*',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
@@ -434,13 +435,18 @@ class loginPanle():
         #配置是否开启微信提醒功能
         isOpenWechatCheckbox = tk.Checkbutton(settingPanelTab , variable = self.isOpenWechat,text = '是否开启微信提醒',command = lambda :self.myThreading(self.loginWechat,name = '微信提醒线程'))
         isOpenWechatCheckbox.grid(row = 1 , column = 0 ,padx =2)
+        #设置提醒对象
+        setNoticeObjLabel = tk.Label(settingPanelTab , text = '提醒对象')
+        setNoticeObjLabel.grid(row = 1 ,column = 1)
+        self.setNoticeObjCombox = ttk.Combobox(settingPanelTab , textvariable = self.nickName ,state = 'readonly')
+        self.setNoticeObjCombox.grid(row = 1 , column = 2)
         #配置运营商
         carrierLabel = tk.Label(settingPanelTab, text='运营商')
-        carrierLabel.grid(row=1, column=1)
+        carrierLabel.grid(row=1, column=3)
         carrierCombobox = ttk.Combobox(settingPanelTab, textvariable=self.selectedCarrier, width=8, state='readonly')
         carrierCombobox['value'] = ['全部','移动','联通','电信']
         carrierCombobox.current(0)
-        carrierCombobox.grid(row=1, column=2)
+        carrierCombobox.grid(row=1, column=4)
 
 
         
@@ -579,7 +585,7 @@ class loginPanle():
         url = self.host+'Api/Charge/GetOrder'
         #先把不符合的给剔除
         if self.isOpenWechat.get() == 1 and not amount and  not num :
-            itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username)
+            itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.getUserName(self.nickName.get()))
             return
         elif self.isOpenWechat.get() != 1 and not amount and not num:
             tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
@@ -980,7 +986,7 @@ class loginPanle():
                     State = '供货商充值中'
                     if self.toUserName and phoneNumber not in self.sendedOrders:
                         self.sendedOrders.append(phoneNumber)
-                        itchat.send_msg(msg = '%s抢单手机号：%s面值%s'%(self.getNowTime(),phoneNumber,ProductName) , toUserName = self.toUserName)
+                        itchat.send_msg(msg = '%s抢单手机号：%s面值%s'%(self.getNowTime(),phoneNumber,ProductName) , toUserName = self.getUserName(self.nickName.get()))
                 elif State == 11:
                     State = '供货商充值完成'
                 #筛选展示的订单
@@ -1263,16 +1269,16 @@ class loginPanle():
         width = self.root.winfo_screenwidth()
         height = self.root.winfo_screenheight()
         return (int((width-adjust_x)/2) , int((height-adjust_y)/2))
-        
-    def loginWechat(self):
-        def mySend(content):
-            itchat.send_msg(msg=content, toUserName=self.toUserName)
-        #重写自动回复函数
-        def getUserName(nickName):
+    def getUserName(self,nickName):
             for i in self.friends:
                 if nickName == i.get('NickName'):
                     return i.get('UserName')
-
+    def loginWechat(self):
+        def mySend(content):
+            #print(content , self.toUserName)
+            itchat.send_msg(msg=content, toUserName=self.getUserName(self.nickName.get()))
+        #重写自动回复函数
+        
         def dealMsg(content:str):
             dealTime = self.getNowTime()
             if content == 'ok' or content == 'OK':
@@ -1354,7 +1360,8 @@ class loginPanle():
             #内部函数，处理消息
             #print(msg['FromUserName'],self.friends[0]['UserName'],self.toUserName)#偶发没收到消息的情况
             content = msg['Text']
-            if msg['FromUserName'] != self.friends[0]['UserName'] and self.toUserName == msg['FromUserName']:
+            print(msg)
+            if msg['FromUserName'] != self.friends[0]['UserName'] and self.getUserName(self.nickName.get()) == msg['FromUserName']:
                 autoReply = '回复ok，全部充值成功\n回复手机号+ok某个订单成功\n回复手机号+no某个订单失败\n回复开始抢单+(省份可缺)+面值+单数+(0移动1联通2电信)\n回复停止抢单'
                 mySend(autoReply)
                 dealMsg(content)
@@ -1400,7 +1407,9 @@ class loginPanle():
             itchat.start_receiving()
             self.printLog('微信心跳开启成功....')
             self.friends = itchat.get_friends(update = True)
-            self.toUserName = getUserName('咚咚咚')
+            #print(self.friends)
+            self.setNoticeObjCombox['value'] = [i.get('NickName') for i in self.friends]
+            #self.toUserName = getUserName('咚咚咚')
             itchat.run()
         else:
             itchat.logout()
@@ -1459,7 +1468,7 @@ class loginPanle():
         url = self.host+'Api/Charge/GetOrder'
         #先把不符合的给剔除
         if self.isOpenWechat.get() == 1 and (not amount or  not needPhones) :
-            itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username)
+            itchat.send_msg(msg ='请正确填写抢单数量和抢单面额' , toUserName = self.Username.get())
             return
         elif self.isOpenWechat.get() != 1 and (not amount or not needPhones):
             tkinter.messagebox.showinfo('警告', '请选择抢单数量和抢单面额')
